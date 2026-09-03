@@ -1,0 +1,4 @@
+# The four pages in pages/ are fingerprinted by checkPages() in Web.gs, so a
+# checkout that turned their line endings into CRLF would report them as
+# tampered with. Everything here stays LF, on every machine.
+* text=auto eol=lf

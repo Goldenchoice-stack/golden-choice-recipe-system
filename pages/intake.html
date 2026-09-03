@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Recipe R&amp;D Intake — Golden Choice</title>
+<style>
+:root{
+  --bg:#F5F7F4;--surface:#fff;--surface-2:#FAFBF9;--field:#fff;
+  --line:#E1E6DF;--line-strong:#CBD3C8;
+  --ink:#131B16;--ink-2:#3A463F;--muted:#65706A;
+  --accent:#1D5C48;--accent-2:#2A7A5F;--accent-tint:#E7F0EB;
+  --warn:#8A6212;--warn-tint:#FBF1DC;
+  --stop:#963B37;--stop-tint:#F9E7E5;
+  --shadow:0 1px 2px rgba(19,27,22,.05),0 4px 14px rgba(19,27,22,.05);
+  --mono:"Cascadia Mono",Consolas,"SF Mono",ui-monospace,monospace;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0F1512;--surface:#161D19;--surface-2:#1B231E;--field:#111815;
+  --line:#27302A;--line-strong:#39443C;
+  --ink:#E8EEE9;--ink-2:#BAC5BE;--muted:#8B968F;
+  --accent:#6BC79E;--accent-2:#8AD9B5;--accent-tint:#172C23;
+  --warn:#E0B15C;--warn-tint:#2E2413;
+  --stop:#E58C86;--stop-tint:#2F1A19;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:24px 20px 90px;display:flex;flex-direction:column;gap:20px}
+.masthead{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;padding-bottom:15px;border-bottom:2px solid var(--ink)}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 5px}
+h1{margin:0;font-size:25px;letter-spacing:-.018em;font-weight:700}
+.sub{margin:5px 0 0;color:var(--muted);font-size:13.5px;max-width:64ch}
+.idbadge{font-family:var(--mono);font-size:19px;font-weight:600;color:var(--accent);background:var(--accent-tint);border:1px solid var(--accent);padding:8px 15px;border-radius:7px;text-align:center}
+.idbadge small{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;opacity:.75;margin-top:2px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.card>h2{margin:0;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);display:flex;gap:9px;align-items:center}
+.card>h2 .n{font-family:var(--mono);color:var(--accent);font-size:12px}
+.card .body{padding:16px;display:flex;flex-direction:column;gap:14px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(178px,1fr))}
+.f{display:flex;flex-direction:column;gap:5px;min-width:0}
+.f>label{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.hint{font-size:11.5px;color:var(--muted)}
+.req{color:var(--stop)}
+input,select,textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--field);border:1px solid var(--line-strong);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+textarea{resize:vertical;min-height:74px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+.btn{appearance:none;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer;padding:9px 16px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink)}
+.btn:hover{border-color:var(--ink-2)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.btn.pri:hover{background:var(--accent-2);border-color:var(--accent-2)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{font-size:12.5px;padding:6px 11px}
+.row{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.cols{display:grid;gap:20px;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);align-items:start}
+@media(max-width:1000px){.cols{grid-template-columns:1fr}}
+.sticky{position:sticky;top:16px;display:flex;flex-direction:column;gap:16px}
+@media(max-width:1000px){.sticky{position:static}}
+.choose{display:grid;gap:16px;grid-template-columns:1fr 1fr}
+@media(max-width:720px){.choose{grid-template-columns:1fr}}
+.choose button{appearance:none;cursor:pointer;font:inherit;text-align:left;padding:26px 22px;border-radius:12px;border:2px solid var(--line-strong);background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.choose button:hover{border-color:var(--accent);background:var(--accent-tint)}
+.choose .t{display:block;font-size:18px;font-weight:700;margin-bottom:6px}
+.choose .d{display:block;font-size:13px;color:var(--muted);line-height:1.5}
+.choose .ic{display:block;font-size:26px;margin-bottom:9px;color:var(--accent)}
+.ings{display:flex;flex-direction:column;gap:7px}
+.ing{display:grid;gap:7px;grid-template-columns:minmax(0,1fr) 78px 88px 90px 34px;align-items:center}
+@media(max-width:700px){.ing{grid-template-columns:minmax(0,1fr) 64px 72px 34px}.ing .lc{display:none}}
+.ing .x{appearance:none;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--muted);border-radius:6px;cursor:pointer;font-size:17px;height:37px;padding:0}
+.ing .x:hover{color:var(--stop);border-color:var(--stop)}
+.ing .lc{font-family:var(--mono);font-size:11.5px;text-align:right;color:var(--muted);white-space:nowrap}
+.ing .lc.ok{color:var(--accent);font-weight:600}
+.ing.new-row input.nm{border-color:var(--accent);background:var(--accent-tint)}
+.ing.gone{opacity:.45}
+.ing.gone input.nm{text-decoration:line-through}
+.panel{border-radius:7px;padding:11px 14px;font-size:13px;color:var(--ink-2)}
+.panel.ok{background:var(--accent-tint);border:1px solid var(--accent)}
+.panel.warn{background:var(--warn-tint);border:1px solid var(--warn)}
+.panel.stop{background:var(--stop-tint);border:1px solid var(--stop)}
+.panel b{color:var(--ink)}
+.vbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-family:var(--mono);font-size:16px}
+.vbar .arrow{color:var(--muted)}
+.vbar .to{color:var(--accent);font-weight:700}
+.pill{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:3px}
+.pill.ok{background:var(--accent-tint);color:var(--accent)}
+.pill.warn{background:var(--warn-tint);color:var(--warn)}
+.pill.stop{background:var(--stop-tint);color:var(--stop)}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.t td{padding:5px 0;border-bottom:1px solid var(--line);vertical-align:top}
+table.t td.v{font-family:var(--mono);white-space:nowrap;padding-left:10px;text-align:right}
+table.t tr.sum td{border-bottom:none;border-top:2px solid var(--line-strong);font-weight:700;color:var(--ink);padding-top:7px}
+.old{color:var(--muted);text-decoration:line-through}
+.now{color:var(--accent);font-weight:600}
+.chk{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.chk div{display:flex;gap:8px;align-items:flex-start}
+.chk .m{flex:none;font-family:var(--mono);font-weight:700;width:14px}
+.chk .ok{color:var(--accent)}.chk .wa{color:var(--warn)}.chk .er{color:var(--stop)}
+.searchwrap{position:relative}
+.sug{position:absolute;z-index:20;left:0;right:0;top:100%;margin-top:4px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;box-shadow:var(--shadow);max-height:320px;overflow:auto;display:none}
+.sug div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13.5px}
+.sug div:last-child{border-bottom:none}
+.sug div:hover{background:var(--accent-tint)}
+.sug .count,.sug .none{cursor:default;background:var(--surface-2);color:var(--muted);font-size:12px}
+.sug .count:hover,.sug .none:hover{background:var(--surface-2)}
+.sug .none{color:var(--ink-2);font-size:13px;line-height:1.5}
+.sug .zh{color:var(--muted)}
+.sug .id{font-family:var(--mono);color:var(--accent);font-size:12px}
+.thumb{max-width:210px;border-radius:7px;border:1px solid var(--line);display:block}
+footer{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head><body>
+<div class="wrap">
+
+<header class="masthead">
+  <div>
+    <p class="eyebrow">Golden Choice Sdn. Bhd. — R&amp;D</p>
+    <h1>Recipe R&amp;D Intake</h1>
+    <p class="sub" id="sub">Loading recipe data…</p>
+  </div>
+  <div class="idbadge" id="badge" hidden>—<small id="badgeSub">&nbsp;</small></div>
+</header>
+
+<div class="panel warn" id="liveBanner" hidden style="display:none"></div>
+
+<!-- ===== 1. choose ===== -->
+<section id="scChoose">
+  <div class="card"><div class="body">
+    <p style="margin:0;font-size:15px;font-weight:600">What would you like to do?</p>
+    <div class="choose">
+      <button type="button" id="goNew"><span class="ic">＋</span>
+        <span class="t">Add New Creation</span>
+        <span class="d">A drink that does not exist yet. Gets the next Recipe ID and starts at V1.0.</span></button>
+      <button type="button" id="goUpd"><span class="ic">✎</span>
+        <span class="t">Update Existing Creation</span>
+        <span class="d">Amend a recipe already in the log. Keeps its Recipe ID and creates a new version.</span></button>
+    </div>
+    <div class="row" style="margin-top:4px">
+      <a class="btn sm" href="index.html">Recipe Finder</a><a class="btn sm" href="approve.html">Approvals →</a>
+      <span class="hint">Owner only — approve or reject submitted versions.</span>
+    </div>
+  </div></div>
+</section>
+
+<!-- ===== 2. search ===== -->
+<section id="scSearch" hidden>
+  <div class="card"><h2>Search existing recipe</h2><div class="body">
+    <div class="f searchwrap">
+      <label for="q">Recipe ID, name or ingredient</label>
+      <input id="q" autocomplete="off" placeholder="e.g. Matcha Latte, 抹茶拿铁, RCP-0215, or Pistachio">
+      <div class="sug" id="sug"></div>
+      <span class="hint" id="qhint"></span>
+    </div>
+    <div id="pick"></div>
+    <div class="row"><button class="btn" id="backA">← Back</button></div>
+  </div></div>
+</section>
+
+<!-- ===== 3. form ===== -->
+<section id="scForm" hidden>
+  <div class="panel ok" id="ctx" style="margin-bottom:20px"></div>
+  <div class="cols">
+
+    <div style="display:flex;flex-direction:column;gap:20px">
+
+      <div class="card"><h2>1 — What is this trial?</h2><div class="body">
+        <div class="grid">
+          <div class="f"><label for="rname">Creation name <span class="req">*</span></label>
+            <input id="rname" autocomplete="off" placeholder="e.g. Osmanthus Pear Matcha"></div>
+          <div class="f"><label for="rzh">Chinese name</label>
+            <input id="rzh" autocomplete="off" placeholder="桂花梨抹茶">
+            <span class="hint">Optional. Needed for XiaoHongShu.</span></div>
+        </div>
+        <div class="grid">
+          <div class="f"><label for="rdate">Trial date <span class="req">*</span></label><input id="rdate" type="date"></div>
+          <div class="f"><label for="rby">R&amp;D PIC <span class="req">*</span></label>
+            <select id="rby"><option value="">— choose —</option><option>Sakura</option><option>Robin</option><option>GC</option></select></div>
+        </div>
+        <div class="grid">
+          <div class="f"><label for="rcat">Category</label>
+            <select id="rcat"><option value="">— choose —</option>
+              <option>Matcha &amp; Green Tea</option><option>Coffee</option><option>Fruit Tea</option>
+              <option>Milk Tea</option><option>Coconut</option><option>Sparkling / Soda</option>
+              <option>Cheese Cap / Topping</option><option>Cream / Jam / Jelly (component)</option>
+              <option>Dessert / Mooncake</option><option>Snow Ice / Bingsu</option><option>SOP / Standard</option>
+            </select></div>
+          <div class="f"><label for="rproj">Project</label>
+            <select id="rproj"><option>House</option><option>CNY</option><option>Raya</option>
+              <option>Christmas</option><option>Valentine</option><option>Ramadan</option>
+              <option>Agent Recipe</option><option>Customer Request</option></select>
+            <span class="hint">Campaign goes here, never in Status.</span></div>
+        </div>
+        <div class="grid">
+          <div class="f"><label for="rbev">Beverage type</label>
+            <select id="rbev"><option>Iced</option><option>Hot</option><option>Blended / Smoothie</option>
+              <option>Sparkling</option><option>Nitrogen</option><option>Dessert</option>
+              <option>Base / Component</option></select></div>
+          <div class="f"><label for="rtarget">Target product</label>
+            <input id="rtarget" autocomplete="off" placeholder="e.g. BrevA Pistachio Sauce">
+            <span class="hint">The product this trial is meant to sell.</span></div>
+        </div>
+      </div></div>
+
+      <div class="card"><h2>2 — Ingredients <span class="n" id="ingcount"></span></h2><div class="body">
+        <div class="ings" id="ings"></div>
+        <div class="row"><button class="btn" id="addIng">+ Add ingredient</button></div>
+        <span class="hint">Type to match an existing name so spellings stay consistent.
+          The figure on the right is that line's cost.</span>
+      </div></div>
+
+      <div class="card"><h2>3 — How did the trial go?</h2><div class="body">
+        <div class="grid">
+          <div class="f"><label for="rstage">Stage</label>
+            <select id="rstage"><option>Request</option><option>R&amp;D</option>
+              <option selected>Trial</option><option>Revision</option><option>Testing</option></select></div>
+          <div class="f"><label for="rstatus">Status</label>
+            <select id="rstatus"><option selected>In R&amp;D</option><option>Waiting</option>
+              <option>Revision</option><option>Completed</option></select></div>
+          <div class="f"><label for="rresult">Trial result</label>
+            <select id="rresult"><option value="">— not decided —</option>
+              <option>Pass</option><option>Fail</option><option>Revise</option></select></div>
+        </div>
+        <div class="grid">
+          <div class="f"><label for="rdue">Due date</label><input id="rdue" type="date">
+            <span class="hint">Leave blank if nothing is promised.</span></div>
+          <div class="f"><label for="rdone">Completion date</label><input id="rdone" type="date">
+            <span class="hint">Fill only when finished.</span></div>
+        </div>
+        <div class="f"><label for="rnext">Next action</label>
+          <input id="rnext" autocomplete="off" placeholder="e.g. Send sample to BA / reduce sweetness"></div>
+        <div class="f"><label for="notes">Notes &amp; customer feedback</label>
+          <textarea id="notes" placeholder="Anything management should know."></textarea></div>
+      </div></div>
+
+      <div class="card"><h2>4 — Production detail</h2><div class="body">
+        <div class="panel ok"><b>Cost is not typed here.</b> It is calculated from the quantity you
+          use and the pack price from AutoCount, so it cannot go stale or be guessed. Serving size
+          and selling price are yours to set.</div>
+        <div class="grid">
+          <div class="f"><label for="serve">Serving size (ml)</label><input id="serve" type="number" min="0" placeholder="480"></div>
+          <div class="f"><label for="diff">Difficulty</label>
+            <select id="diff"><option value="">—</option><option>Easy</option><option>Medium</option><option>Advanced</option></select></div>
+          <div class="f"><label for="price">Selling price (RM)</label><input id="price" type="number" min="0" step="0.01" placeholder="13.90"></div>
+        </div>
+        <div class="f"><label for="equip">Equipment</label>
+          <input id="equip" autocomplete="off" placeholder="e.g. Espresso machine, blender, whisk"></div>
+        <div class="f"><label for="method">Preparation method</label>
+          <textarea id="method" placeholder="1. Whisk matcha with warm water until smooth.&#10;2. Add tea base and pear syrup."></textarea></div>
+      </div></div>
+
+      <div class="card"><h2>5 — Photo &amp; video</h2><div class="body">
+        <div class="f"><label for="photo">Photo of the finished drink</label>
+          <input id="photo" type="file" accept="image/*">
+          <span class="hint">Saved against the Recipe ID.</span></div>
+        <div id="photoOut" hidden><img class="thumb" id="thumb" alt="Preview"></div>
+        <div class="f"><label for="rvideo">Recipe video link</label>
+          <input id="rvideo" autocomplete="off" placeholder="Paste a Drive or YouTube link"></div>
+      </div></div>
+
+      <div class="card" id="cardUpd" hidden><h2>6 — Why is this being changed?</h2><div class="body">
+        <div class="f"><label for="reason">Reason for update <span class="req">*</span></label>
+          <select id="reason"><option value="">— choose —</option>
+            <option>Ingredient Change</option><option>Quantity Adjustment</option>
+            <option>Preparation Method</option><option>Product Replacement</option>
+            <option>Cost Adjustment</option><option>Customer Feedback</option>
+            <option>Internal R&amp;D Improvement</option><option>Typo / Formatting</option><option>Other</option>
+          </select></div>
+        <div class="f"><label for="remarks">Update remarks <span class="req">*</span></label>
+          <textarea id="remarks" placeholder="e.g. Reduced syrup from 20ml to 15ml after internal tasting."></textarea></div>
+      </div></div>
+    </div>
+
+    <!-- right column -->
+    <div class="sticky">
+      <div class="card"><h2>Version</h2><div class="body"><div id="verBox"></div></div></div>
+      <div class="card"><h2>Costing <span class="n" id="costBadge"></span></h2>
+        <div class="body"><div id="costWrap"></div><span class="hint" id="costHint"></span></div></div>
+      <div class="card" id="chgCard" hidden><h2>What changed</h2><div class="body"><div id="chgBox"></div></div></div>
+      <div class="card"><h2>Checks</h2><div class="body"><div class="chk" id="checks"></div></div></div>
+      <div class="card"><h2>Submit</h2><div class="body">
+        <div class="panel warn">Submitted as <b>PENDING REVIEW</b>. R&amp;D cannot approve its own
+          recipe — only the owner does that, on the Approvals page.</div>
+        <div class="row">
+          <button class="btn pri" id="submit">Submit</button>
+          <button class="btn" id="backB">← Start over</button>
+          <span class="hint" id="msg"></span>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 4. done ===== -->
+<section id="scDone" hidden><div class="card"><div class="body" id="doneBody"></div></div></section>
+
+<footer>
+  Recipe IDs are permanent. Versions record every revision. Nothing is overwritten — an approved
+  recipe stays current until its replacement is approved.
+</footer>
+</div>
+
+<script>
+'use strict';
+var $=function(i){return document.getElementById(i);};
+var DATA=null, PRICES=null, MODE=null, CUR=null, photoData=null;
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function round2(n){return Math.round(Number(n)*100+1e-9)/100;}
+function rm(n){return 'RM'+round2(n).toFixed(2);}
+function todayISO(){var d=new Date(),p=function(x){return(x<10?'0':'')+x;};
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
+
+/* ---------- live data ---------- */
+var POLL_MS=60000;
+function banner(h){var b=$('liveBanner');
+  if(!h){b.hidden=true;b.style.display='none';return;}
+  b.innerHTML=h;b.hidden=false;b.style.display='block';}
+function sig(r){return JSON.stringify([r.name,r.status,(r.ing||[]).map(function(i){return[i.n,i.q,i.u];})]);}
+
+function applyData(d,first){
+  var prevNext=DATA?DATA.nextId:null;
+  DATA=d;
+  $('sub').textContent=d.count+' creations · '+d.counts.approved+' approved · next new ID '+d.nextId;
+  var dl=$('ingList');
+  if(dl) dl.innerHTML=d.ingredients.map(function(n){return '<option value="'+esc(n)+'">';}).join('');
+  if(first) return;
+  if(MODE==='new'&&prevNext&&d.nextId!==prevNext){
+    setBadge(d.nextId,'New creation');
+    banner('A recipe was just added to the sheet, so this will now be saved as <b>'+d.nextId+'</b> instead of '+prevNext+'.');
+  }
+  if(MODE==='update'&&CUR){
+    var now=d.recipes.find(function(r){return r.id===CUR.id;});
+    if(now&&sig(now)!==sig(CUR)){
+      banner('<b>'+CUR.id+'</b> was changed in the Google Sheet while you were editing. '+
+        'The change list below is against the older version. '+
+        '<button class="btn sm" id="reloadRec" style="margin-left:8px">Reload current recipe</button>');
+      var rb=$('reloadRec');
+      if(rb) rb.addEventListener('click',function(){banner('');loadRecipe(now);});
+    }
+  }
+}
+function pull(first){
+  return fetch('all-recipes.json?t='+Date.now(),{cache:'no-store'})
+    .then(function(r){return r.json();}).then(function(d){applyData(d,first);})
+    .catch(function(){ if(first) $('sub').textContent='Could not load recipe data. Refresh shortly.'; });
+}
+fetch('prices.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();})
+  .then(function(p){PRICES=p;render();}).catch(function(){PRICES={items:{}};});
+pull(true).then(function(){
+  /* Arrived from a card on the Finder: open that recipe straight into the
+     update form, so nobody searches for what they just had on screen. */
+  var want=(window.GC_PARAMS||{}).update;
+  if(!want) return;
+  var r=DATA&&DATA.recipes.find(function(x){return x.id===want;});
+  if(r) loadRecipe(r);
+  else banner('Could not open <b>'+esc(want)+'</b> - search for it below.');
+});
+setInterval(function(){pull(false);},POLL_MS);
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible') pull(false);});
+
+/* ---------- screens ---------- */
+function show(id){['scChoose','scSearch','scForm','scDone'].forEach(function(s){$(s).hidden=(s!==id);});
+  window.scrollTo({top:0,behavior:'instant'});}
+function setBadge(id,sub){var b=$('badge');b.hidden=false;b.firstChild.nodeValue=id;$('badgeSub').textContent=sub;}
+
+function resetForm(){
+  ['rname','rzh','rtarget','rnext','notes','equip','method','serve','price','rvideo','remarks'].forEach(function(i){$(i).value='';});
+  ['rcat','rby','reason','rresult','diff'].forEach(function(i){$(i).value='';});
+  $('rdate').value=todayISO(); $('rdue').value=''; $('rdone').value='';
+  $('rstage').value='Trial'; $('rstatus').value='In R&D'; $('rproj').value='House'; $('rbev').value='Iced';
+  $('photo').value=''; $('photoOut').hidden=true; photoData=null;
+  $('ings').innerHTML='';
+  /* Signed in under an R&D name: it is their trial nine times in ten, so the
+     field starts on their name rather than on choose. Still changeable. */
+  if(window.GC_USER&&window.GC_USER.pic) $('rby').value=window.GC_USER.pic;
+}
+$('goNew').addEventListener('click',function(){
+  if(!DATA) return; banner(''); MODE='new'; CUR=null;
+  setBadge(DATA.nextId,'New creation'); $('cardUpd').hidden=true; $('chgCard').hidden=true;
+  resetForm(); addRow(); addRow();
+  $('ctx').className='panel ok';
+  $('ctx').innerHTML='<b>New creation.</b> Saved as <b>'+DATA.nextId+'</b> at <b>V1.0</b>, status <b>PENDING REVIEW</b>.';
+  render(); show('scForm');
+});
+$('goUpd').addEventListener('click',function(){
+  if(!DATA) return; banner(''); MODE='update'; CUR=null;
+  $('badge').hidden=true; $('q').value=''; $('pick').innerHTML=''; $('sug').style.display='none';
+  $('qhint').textContent='Searches '+DATA.count+' creations by ID, English or Chinese name, or ingredient.';
+  show('scSearch'); $('q').focus();
+});
+$('backA').addEventListener('click',function(){$('badge').hidden=true;show('scChoose');});
+$('backB').addEventListener('click',function(){$('badge').hidden=true;banner('');show('scChoose');});
+
+/* ---------- search ---------- */
+$('q').addEventListener('input',function(){
+  var t=this.value.trim().toLowerCase(), s=$('sug');
+  if(!t||!DATA){s.style.display='none';return;}
+  var out=[];
+  for(var i=0;i<DATA.recipes.length&&out.length<40;i++){
+    var r=DATA.recipes[i], why='';
+    if(r.id.toLowerCase().indexOf(t)>=0) why='id';
+    else if(r.name.toLowerCase().indexOf(t)>=0) why='name';
+    else if(String(r.zh||'').toLowerCase().indexOf(t)>=0) why='Chinese name';
+    else if(r.ing.some(function(x){return x.n.toLowerCase().indexOf(t)>=0;})) why='ingredient';
+    if(why) out.push({r:r,why:why});
+  }
+  if(!out.length){
+    s.innerHTML='<div class="none">Nothing among the '+DATA.count+' creations matches <b>'+esc(this.value.trim())+
+      '</b>.<br>Try part of the drink name, its Chinese name, an ingredient, or the RCP- number.</div>';
+    s.style.display='block';return;}
+  /* The count is shown because a list that is merely short looks the same as a
+     list that has been cut off, and the difference matters when a recipe seems
+     to be missing. */
+  s.innerHTML='<div class="count">'+out.length+(out.length>=40?'+ (showing the first 40)':'')+
+      ' match'+(out.length===1?'':'es')+'</div>'+
+    out.map(function(x){
+    return '<div data-id="'+x.r.id+'"><span class="id">'+x.r.id+'</span> — '+esc(x.r.name)+
+      (x.r.zh?' <span class="zh">'+esc(x.r.zh)+'</span>':'')+
+      ' <span class="hint">· '+x.r.status+' · '+x.r.ing.length+' ingredients'+
+      (x.why==='ingredient'||x.why==='Chinese name'?' · matched '+x.why:'')+'</span></div>';}).join('');
+  s.style.display='block';
+});
+$('sug').addEventListener('click',function(e){
+  var d=e.target.closest('div[data-id]'); if(!d) return;
+  var r=DATA.recipes.find(function(x){return x.id===d.getAttribute('data-id');});
+  if(!r) return;
+  $('sug').style.display='none'; $('q').value=r.name+' — '+r.id;
+  $('pick').innerHTML='<div class="panel ok"><div class="vbar"><b>'+r.id+'</b> — '+esc(r.name)+'</div>'+
+    '<div style="margin-top:6px">Status <b>'+r.status+'</b> · '+r.ing.length+' ingredients · current version <b>V1.0</b></div>'+
+    '<div class="row" style="margin-top:10px"><button class="btn pri" id="load">Load this recipe</button></div></div>';
+  $('load').addEventListener('click',function(){loadRecipe(r);});
+});
+document.addEventListener('click',function(e){if(!e.target.closest('.searchwrap'))$('sug').style.display='none';});
+
+function loadRecipe(r){
+  CUR=r; MODE='update'; setBadge(r.id,'Existing drink');
+  $('cardUpd').hidden=false; $('chgCard').hidden=false;
+  resetForm();
+  $('rname').value=r.name;
+  /* what this recipe already has, so an edit shows up as an edit */
+  $('rzh').value=r.zh||'';       $('serve').value=r.serve||'';   $('price').value=r.price||'';
+  $('diff').value=r.diff||'';     $('equip').value=r.equip||'';
+  $('method').value=r.method||''; $('rvideo').value=r.video||'';
+  r.ing.forEach(function(i){addRow(i.n,i.q,i.u);});
+  if(!r.ing.length) addRow();
+  $('ctx').className='panel '+(r.status==='Approved'?'warn':'ok');
+  $('ctx').innerHTML='<b>'+r.id+' — '+esc(r.name)+'</b><br>The Recipe ID never changes; your amendments create a new version.'+
+    (r.status==='Approved'?' Because this is <b>Approved</b>, V1.0 stays the live recipe until your new version is approved.':'');
+  render(); show('scForm');
+}
+
+/* ---------- ingredients + costing ---------- */
+/* Line cost = quantity used ÷ units per pack × pack price. */
+function lineCost(name,qty){
+  if(!PRICES||!PRICES.items) return {state:'pending'};
+  var e=PRICES.items[String(name||'').trim().toLowerCase()];
+  if(!e) return {state:'unknown'};
+  if(e.nonCost) return {state:'noncost',cost:0};
+  var q=parseFloat(qty);
+  if(!e.per||e.cost==null||!isFinite(q)) return {state:'pending',code:e.code};
+  return {state:'ok',cost:q/e.per*e.cost,code:e.code};
+}
+function addRow(n,q,u){
+  var d=document.createElement('div'); d.className='ing';
+  var opts=(DATA?DATA.uoms:['G','ML']).map(function(x){return '<option>'+x+'</option>';}).join('');
+  d.innerHTML='<div><input class="nm" list="ingList" autocomplete="off" placeholder="Ingredient name"></div>'+
+    '<input class="qt" type="number" min="0" step="0.1" placeholder="Qty">'+
+    '<select class="um">'+opts+'</select>'+
+    '<div class="lc">—</div>'+
+    '<button class="x" title="Remove" aria-label="Remove">×</button>';
+  $('ings').appendChild(d);
+  if(n!=null) d.querySelector('.nm').value=n;
+  if(q!=null) d.querySelector('.qt').value=q;
+  if(u!=null) d.querySelector('.um').value=u;
+  d.dataset.orig=(n==null)?'':'1';
+  d.querySelector('.x').addEventListener('click',function(){
+    if(d.dataset.orig&&MODE==='update') d.classList.toggle('gone'); else d.remove();
+    render();});
+  d.querySelectorAll('input,select').forEach(function(el){
+    el.addEventListener('input',render); el.addEventListener('change',render);});
+  return d;
+}
+$('addIng').addEventListener('click',function(){addRow();render();});
+function collect(){
+  var out=[];
+  $('ings').querySelectorAll('.ing').forEach(function(d){
+    if(d.classList.contains('gone')) return;
+    var n=d.querySelector('.nm').value.trim(); if(!n) return;
+    out.push({n:n,q:d.querySelector('.qt').value.trim(),u:d.querySelector('.um').value});});
+  return out;
+}
+
+/* ---------- diff ---------- */
+var K=function(s){return String(s||'').trim().toLowerCase();};
+function diff(){
+  if(MODE!=='update'||!CUR) return [];
+  var out=[],now=collect(),o={},n={};
+  CUR.ing.forEach(function(i){o[K(i.n)]=i;});
+  now.forEach(function(i){n[K(i.n)]=i;});
+  if(K(CUR.name)!==K($('rname').value)) out.push({f:'Recipe Name',a:CUR.name,b:$('rname').value.trim(),k:'changed'});
+  Object.keys(n).forEach(function(k){
+    var ni=n[k],oi=o[k];
+    if(!oi){out.push({f:ni.n,a:'',b:ni.q+' '+ni.u,k:'added'});return;}
+    if(String(oi.q).trim()!==String(ni.q).trim()||K(oi.u)!==K(ni.u))
+      out.push({f:ni.n,a:oi.q+' '+oi.u,b:ni.q+' '+ni.u,k:'changed'});});
+  Object.keys(o).forEach(function(k){if(!n[k])out.push({f:o[k].n,a:o[k].q+' '+o[k].u,b:'',k:'removed'});});
+  /* Production detail. The intake captures these and R&D TRIAL LOG records them,
+     so changing serving size or price alone is a real change -- without this the
+     page said "nothing changed yet" and would not let the update be submitted. */
+  [['rzh','Chinese name','zh'],['serve','Serving size','serve'],['price','Selling price','price'],
+   ['diff','Difficulty','diff'],['equip','Equipment','equip'],
+   ['method','Preparation method','method'],['rvideo','Video link','video']]
+  .forEach(function(f){
+    var a=String(CUR[f[2]]||'').trim(), b=$(f[0]).value.trim();
+    if(K(a)===K(b)) return;
+    out.push({f:f[1],a:a,b:b,k:a?(b?'changed':'removed'):'added'});
+  });
+  if(photoData) out.push({f:'Photo',a:'',b:'new photo attached',k:'added'});
+  return out;
+}
+
+/* ---------- render ---------- */
+function render(){
+  var ings=collect(), ch=diff();
+  $('ingcount').textContent=ings.length+' rows';
+
+  // per-line cost + totals
+  var total=0, pending=0, priced=0;
+  $('ings').querySelectorAll('.ing').forEach(function(d){
+    var cell=d.querySelector('.lc'); if(!cell) return;
+    if(d.classList.contains('gone')){cell.textContent='—';cell.className='lc';return;}
+    var n=d.querySelector('.nm').value.trim();
+    if(!n){cell.textContent='—';cell.className='lc';return;}
+    var r=lineCost(n,d.querySelector('.qt').value);
+    if(r.state==='ok'){cell.textContent=rm(r.cost);cell.className='lc ok';total+=r.cost;priced++;}
+    else if(r.state==='noncost'){cell.textContent='free';cell.className='lc';}
+    else {cell.textContent='pending';cell.className='lc';pending++;}
+    if(!d.dataset.orig&&n) d.classList.add('new-row'); else d.classList.remove('new-row');
+  });
+
+  var complete = ings.length>0 && pending===0;
+  var price=parseFloat($('price').value);
+  var foodPct=(complete&&isFinite(price)&&price>0)?(total/price*100):null;
+
+  $('costWrap').innerHTML = !ings.length
+    ? '<span class="hint">Add ingredients to see the cost.</span>'
+    : '<table class="t">'+ings.map(function(i){
+        var r=lineCost(i.n,i.q);
+        var v=r.state==='ok'?rm(r.cost):r.state==='noncost'?'<span class="hint">free</span>':'<span style="color:var(--warn)">pending</span>';
+        return '<tr><td>'+esc(i.n)+'<br><span class="hint">'+(i.q||'?')+' '+i.u+'</span></td><td class="v">'+v+'</td></tr>';
+      }).join('')+
+      '<tr class="sum"><td>Cost per serving</td><td class="v">'+(complete?rm(total):'<span style="color:var(--warn)">—</span>')+'</td></tr>'+
+      (foodPct!=null?'<tr class="sum" style="border-top:none"><td>Food cost</td><td class="v">'+foodPct.toFixed(1)+'%</td></tr>':'')+
+      '</table>';
+  $('costBadge').innerHTML=!ings.length?'':(complete?'<span class="pill ok">complete</span>':'<span class="pill warn">pending</span>');
+  $('costHint').textContent=!ings.length?'':(complete
+    ? 'Every ingredient is priced from AutoCount.'
+    : pending+' ingredient'+(pending===1?'':'s')+' have no AutoCount price yet. The recipe can still be submitted — it is marked COSTING PENDING.');
+
+  // version
+  var nv = MODE==='new' ? 'V1.0'
+    : (ch.length && ch.every(function(c){return c.f==='Recipe Name';})) ? 'V1.1' : 'V2.0';
+  $('verBox').innerHTML = MODE==='new'
+    ? '<div class="vbar"><span class="to">V1.0</span> <span class="hint">first version</span></div>'+
+      '<div style="margin-top:7px"><span class="pill warn">Pending review</span></div>'
+    : '<div class="vbar"><span>V1.0</span><span class="arrow">→</span><span class="to">'+nv+'</span>'+
+      '<span class="hint">'+(nv==='V1.1'?'minor':'major')+'</span></div>'+
+      '<div style="margin-top:7px"><span class="pill warn">Pending review</span>'+
+      (CUR&&CUR.status==='Approved'?' <span class="hint">— V1.0 stays approved until this is</span>':'')+'</div>';
+
+  // change table
+  if(MODE==='update')
+    $('chgBox').innerHTML = ch.length
+      ? '<table class="t">'+ch.map(function(c){
+          return '<tr><td>'+esc(c.f)+' <span class="hint">'+c.k+'</span></td><td class="v">'+
+            (c.a?'<span class="old">'+esc(c.a)+'</span> ':'')+
+            (c.b?'<span class="now">'+esc(c.b)+'</span>':'<span class="hint">removed</span>')+'</td></tr>';}).join('')+'</table>'
+      : '<p class="hint" style="margin:0">Nothing changed yet.</p>';
+
+  // checks
+  var c=[];
+  c.push($('rname').value.trim()?['ok','Creation name set']:['er','Creation name is required']);
+  c.push($('rdate').value?['ok','Trial date set']:['er','Trial date is required']);
+  c.push($('rby').value?['ok','R&D PIC set']:['er','R&D PIC is required']);
+  c.push(ings.length?['ok',ings.length+' ingredient row'+(ings.length===1?'':'s')]:['er','Add at least one ingredient']);
+  if(MODE==='update'){
+    c.push(ch.length?['ok',ch.length+' change'+(ch.length===1?'':'s')+' detected']:['er','Nothing has changed yet']);
+    c.push($('reason').value?['ok','Reason recorded']:['er','Reason for update is required']);
+    c.push($('remarks').value.trim()?['ok','Remarks recorded']:['er','Update remarks are required']);
+  }
+  var noQty=ings.filter(function(i){return !i.q;}).length;
+  if(noQty) c.push(['wa',noQty+' row'+(noQty===1?'':'s')+' missing a quantity']);
+  c.push(complete?['ok','Costing complete — '+rm(total)+' per serving']
+                 :['wa','Costing pending — '+pending+' ingredient'+(pending===1?'':'s')+' unpriced']);
+  c.push($('method').value.trim()?['ok','Method recorded']:['wa','No method — marketing cannot describe it']);
+  c.push(photoData?['ok','Photo attached']:['wa','No photo — posters cannot be finished']);
+  $('checks').innerHTML=c.map(function(x){
+    var m=x[0]==='ok'?'✓':(x[0]==='er'?'✕':'!');
+    return '<div><span class="m '+x[0]+'">'+m+'</span><span>'+esc(x[1])+'</span></div>';}).join('');
+  $('submit').disabled=c.some(function(x){return x[0]==='er';});
+}
+['rname','rzh','rdate','rby','rcat','rproj','rbev','rtarget','rstage','rstatus','rresult',
+ 'rdue','rdone','rnext','notes','serve','diff','price','equip','method','rvideo','reason','remarks']
+ .forEach(function(i){var e=$(i);if(e){e.addEventListener('input',render);e.addEventListener('change',render);}});
+
+$('photo').addEventListener('change',function(e){
+  var f=e.target.files&&e.target.files[0]; if(!f) return;
+  var r=new FileReader();
+  r.onload=function(){photoData=r.result;$('thumb').src=r.result;$('photoOut').hidden=false;render();};
+  r.readAsDataURL(f);
+});
+
+/* ---------- submit ---------- */
+$('submit').addEventListener('click',function(){
+  var btn=this; btn.disabled=true; $('msg').textContent='Submitting…';
+  var ings=collect(), ch=diff();
+  var total=0,pending=0;
+  ings.forEach(function(i){var r=lineCost(i.n,i.q);
+    if(r.state==='ok')total+=r.cost; else if(r.state!=='noncost')pending++;});
+  fetch('/api/submit',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      mode:MODE, id:CUR?CUR.id:null,
+      name:$('rname').value.trim(), zh:$('rzh').value.trim(), by:$('rby').value,
+      trialDate:$('rdate').value, category:$('rcat').value, project:$('rproj').value,
+      beverage:$('rbev').value, target:$('rtarget').value.trim(),
+      stage:$('rstage').value, status:$('rstatus').value, result:$('rresult').value,
+      due:$('rdue').value, done:$('rdone').value, next:$('rnext').value.trim(),
+      notes:$('notes').value, serving:$('serve').value, difficulty:$('diff').value,
+      price:$('price').value, equipment:$('equip').value.trim(), method:$('method').value,
+      video:$('rvideo').value.trim(), photo:photoData,
+      reason:$('reason').value, remarks:$('remarks').value,
+      costPerServing: pending?null:round2(total), costingPending: pending,
+      ingredients:ings, updateType:'major'
+    })
+  }).then(function(r){return r.json();}).then(function(d){
+    $('msg').textContent='';
+    if(!d.ok){btn.disabled=false;$('checks').innerHTML='<div class="panel stop">'+esc(d.error)+'</div>';return;}
+    $('doneBody').innerHTML=
+      '<div class="panel ok"><b>Submitted.</b> '+d.id+' saved as <b>'+d.toVersion+'</b>, status <b>'+d.status+'</b>.</div>'+
+      (d.changes&&d.changes.length?'<p class="hint">'+d.changes.length+' change'+(d.changes.length===1?'':'s')+' recorded in the change log.</p>':'')+
+      (d.sheet?'<div class="panel ok">Written into the Google Sheet.</div>'
+              :'<div class="panel warn">Held in the queue — the sheet connector is not deployed yet, so this will be written as soon as it is. Nothing is lost.</div>')+
+      '<div class="row"><button class="btn pri" onclick="GC_GO(\'intake.html\')">Enter another</button>'+
+      '<a class="btn" href="approve.html">Go to approvals</a></div>';
+    $('badge').hidden=true; show('scDone');
+  }).catch(function(e){
+    btn.disabled=false;$('msg').textContent='';
+    $('checks').innerHTML='<div class="panel stop">Could not submit: '+esc(e.message)+'</div>';});
+});
+
+(function(){var dl=document.createElement('datalist');dl.id='ingList';document.body.appendChild(dl);})();
+$('rdate').value=todayISO();
+</script>
+</body></html>

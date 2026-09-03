@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>R&amp;D Daily Dashboard — Golden Choice</title>
+<style>
+:root{
+  --bg:#F5F7F4;--surface:#fff;--surface-2:#FAFBF9;
+  --line:#E1E6DF;--line-strong:#CBD3C8;
+  --ink:#131B16;--ink-2:#3A463F;--muted:#65706A;
+  --accent:#1D5C48;--accent-2:#2A7A5F;--accent-tint:#E7F0EB;
+  --warn:#8A6212;--warn-tint:#FBF1DC;
+  --stop:#963B37;--stop-tint:#F9E7E5;
+  --shadow:0 1px 2px rgba(19,27,22,.05),0 4px 14px rgba(19,27,22,.05);
+  --mono:"Cascadia Mono",Consolas,"SF Mono",ui-monospace,monospace;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0F1512;--surface:#161D19;--surface-2:#1B231E;
+  --line:#27302A;--line-strong:#39443C;
+  --ink:#E8EEE9;--ink-2:#BAC5BE;--muted:#8B968F;
+  --accent:#6BC79E;--accent-2:#8AD9B5;--accent-tint:#172C23;
+  --warn:#E0B15C;--warn-tint:#2E2413;
+  --stop:#E58C86;--stop-tint:#2F1A19;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 20px 70px;display:flex;flex-direction:column;gap:18px}
+.masthead{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;padding-bottom:14px;border-bottom:2px solid var(--ink)}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 5px}
+h1{margin:0;font-size:25px;font-weight:700;letter-spacing:-.018em}
+.sub{margin:5px 0 0;color:var(--muted);font-size:13.5px}
+.live{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+@media(prefers-reduced-motion:no-preference){.dot{animation:p 2.4s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.25}}}
+h2.sec{margin:8px 0 0;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.tiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(148px,1fr))}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:15px 16px}
+.tile .lab{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px}
+.tile .num{font-size:30px;font-weight:700;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tile .fine{font-size:12px;color:var(--muted);margin-top:4px}
+.tile.good .num{color:var(--accent)}
+.tile.warn .num{color:var(--warn)}
+.tile.crit .num{color:var(--stop)}
+.tile.good{border-color:var(--accent)}
+.tile.warn{border-color:var(--warn)}
+.tile.crit{border-color:var(--stop)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.card>h3{margin:0;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);display:flex;gap:9px;align-items:center}
+.card>h3 .sp{flex:1}
+.card .body{padding:14px 16px}
+.two{display:grid;gap:16px;grid-template-columns:1fr 1fr}
+@media(max-width:820px){.two{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:0 0 7px}
+td{padding:7px 0;border-top:1px solid var(--line);vertical-align:middle}
+td.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.id{font-family:var(--mono);font-size:12.5px;color:var(--accent);white-space:nowrap}
+.bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;min-width:52px}
+.bar span{display:block;height:100%;border-radius:4px;background:var(--accent)}
+.pill{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:3px}
+.pill.ok{background:var(--accent-tint);color:var(--accent)}
+.pill.warn{background:var(--warn-tint);color:var(--warn)}
+.pill.crit{background:var(--stop-tint);color:var(--stop)}
+.empty{color:var(--muted);font-size:13.5px;padding:6px 0}
+.note{border-radius:7px;padding:11px 14px;font-size:13px;color:var(--ink-2);background:var(--warn-tint);border:1px solid var(--warn)}
+.note b{color:var(--ink)}
+footer{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+a{color:var(--accent)}
+.row{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.btn{appearance:none;font:inherit;font-size:13px;font-weight:650;cursor:pointer;padding:7px 13px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);text-decoration:none}
+.btn:hover{border-color:var(--ink-2)}
+/* Clickable tiles and the recipe list overlay they open. */
+.tile.link{position:relative;display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;text-decoration:none}
+.tile.link .lab{padding-right:16px}
+.tile.link:hover{border-color:var(--ink-2)}
+.tile.link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tile.link::after{content:"\203A";position:absolute;top:10px;right:13px;font-size:17px;line-height:1;color:var(--muted)}
+.tile.link:hover::after{color:var(--ink-2)}
+tr.lnk{cursor:pointer}
+tr.lnk:hover td{background:var(--surface-2)}
+tr.lnk a{text-decoration:none}
+.modal{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal[hidden]{display:none}
+.modal-back{position:absolute;inset:0;background:rgba(19,27,22,.45)}
+.modal-box{position:relative;display:flex;flex-direction:column;width:min(760px,100%);max-height:min(80vh,720px);background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.modal-head{display:flex;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.modal-head h3{margin:0;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.modal-head .sp{flex:1}
+.modal-body{padding:4px 16px 16px;overflow:auto}
+.modal-body th{position:sticky;top:0;z-index:3;background:var(--surface);padding-top:11px}
+.modal-body td.n{padding-right:2px}
+.modal-head h3.big{min-width:0;font-size:15px;letter-spacing:-.015em;text-transform:none;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modal-body h4{margin:16px 0 2px;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.meta{display:flex;flex-wrap:wrap;gap:10px 28px;padding:12px 0 2px}
+.meta .k{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:3px}
+.meta .v{font-size:13.5px}
+.meta .v.id{font-family:var(--mono);font-size:12.5px;color:var(--accent)}
+/* A row opens its recipe. The button is the real control — keyboard reachable
+   on its own — and the overlay only widens its target to the whole row. */
+.rowbtn{appearance:none;border:0;background:none;margin:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.modal-body tr.rowr{cursor:pointer}
+.modal-body tr.rowr:hover td{background:var(--surface-2)}
+.stretch tr.rowr{position:relative}
+.stretch .rowbtn::after{content:"";position:absolute;inset:0}
+.stretch .rowbtn:focus-visible{outline:none}
+.stretch .rowbtn:focus-visible::after{outline:2px solid var(--accent);outline-offset:-2px}
+</style>
+</head><body>
+<div class="wrap">
+
+<header class="masthead">
+  <div>
+    <p class="eyebrow">Golden Choice Sdn. Bhd.</p>
+    <h1>R&amp;D Daily Dashboard</h1>
+    <p class="sub" id="sub">Loading…</p>
+  </div>
+  <div style="text-align:right">
+    <div class="live"><span class="dot"></span><span id="live">connecting…</span></div>
+    <div class="row" style="margin-top:9px;justify-content:flex-end">
+      <a class="btn" href="intake.html">Intake</a>
+      <a class="btn" href="approve.html">Approvals</a>
+      <a class="btn" href="index.html">Recipe Finder</a>
+    </div>
+  </div>
+</header>
+
+<div id="banner"></div>
+
+<h2 class="sec">Recipe library</h2>
+<div class="tiles" id="lib"></div>
+
+<h2 class="sec">Today</h2>
+<div class="tiles" id="today"></div>
+
+<div class="two">
+  <div class="card"><h3>Activity</h3><div class="body"><div id="accum"></div></div></div>
+  <div class="card"><h3>By R&amp;D PIC — today</h3><div class="body"><div id="pics"></div></div></div>
+</div>
+
+<div class="two">
+  <div class="card"><h3>Pipeline</h3><div class="body"><div id="pipe"></div></div></div>
+  <div class="card"><h3>Current status</h3><div class="body"><div id="stat"></div></div></div>
+</div>
+
+<h2 class="sec">Version control</h2>
+<div class="tiles" id="ver"></div>
+
+<div class="two">
+  <div class="card"><h3>Waiting for your approval <span class="sp"></span><span id="pcount"></span></h3>
+    <div class="body"><div id="pend"></div></div></div>
+  <div class="card"><h3>Needs attention <span class="sp"></span><span id="ocount"></span></h3>
+    <div class="body"><div id="over"></div></div></div>
+</div>
+
+<div class="card"><h3>Latest activity</h3><div class="body"><div id="latest"></div></div></div>
+
+<footer>
+  Reads your Google Sheet directly and refreshes on its own — no need to reload.
+  Recipe counts come from <b>R&amp;D Log</b>; trial activity from <b>R&amp;D TRIAL LOG</b>.
+</footer>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-back" data-close="1"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <div class="modal-head">
+      <button type="button" class="btn" id="mback" data-back="1" hidden>← Back</button>
+      <h3 id="mtitle">Recipes</h3><span class="sp"></span>
+      <span class="pill ok" id="mcount"></span>
+      <button type="button" class="btn" id="mclose" data-close="1">Close</button>
+    </div>
+    <div class="modal-body" id="mbody"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+var $=function(i){return document.getElementById(i);};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function ago(iso){
+  var s=Math.max(0,(Date.now()-new Date(iso))/1000);
+  if(s<90) return 'just now';
+  if(s<3600) return Math.round(s/60)+' min ago';
+  if(s<86400) return Math.round(s/3600)+' h ago';
+  return Math.round(s/86400)+' d ago';
+}
+function dmy(iso){
+  if(!iso) return '';
+  var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var p=String(iso).split('-');
+  return p.length===3 ? (+p[2])+' '+M[+p[1]-1]+' '+p[0] : iso;
+}
+/* A tile carries its state as a word as well as a colour, so meaning never
+   rests on colour alone. */
+function tile(lab,num,fine,state,act){
+  var cls='tile'+(state?' '+state:'')+(act?' link':'');
+  var inner='<div class="lab">'+esc(lab)+'</div>'+
+    '<div class="num">'+num+'</div>'+(fine?'<div class="fine">'+fine+'</div>':'');
+  if(act&&act.href)   return '<a class="'+cls+'" href="'+esc(act.href)+'">'+inner+'</a>';
+  if(act&&act.filter) return '<button type="button" class="'+cls+'" data-filter="'+esc(act.filter)+'">'+inner+'</button>';
+  return '<div class="'+cls+'">'+inner+'</div>';
+}
+/* The overlay reads the same file the rest of the site serves, so a tile's
+   number and the rows behind it always come from one source. */
+var ALL=null, OPEN=null, DETAIL=null, LISTSCROLL=0, BACKTO=null;
+function rstatus(r){ return String(r&&r.status!=null?r.status:'').trim(); }
+var VIEWS={
+  all:{title:'All recipes', keep:function(){return true;}},
+  approved:{title:'Approved recipes', keep:function(r){return rstatus(r)==='Approved';}},
+  unreviewed:{title:'Unreviewed recipes', keep:function(r){var s=rstatus(r);return s===''||s==='Unreviewed';}},
+  rejected:{title:'Rejected recipes', keep:function(r){return rstatus(r)==='Rejected';}}
+};
+function recipesFor(kind){
+  var list=(ALL&&ALL.recipes)||[];
+  return VIEWS[kind]?list.filter(VIEWS[kind].keep):[];
+}
+function findRecipe(id){
+  var list=(ALL&&ALL.recipes)||[];
+  for(var i=0;i<list.length;i++){ if(String(list[i].id)===String(id)) return list[i]; }
+  return null;
+}
+function statusCell(r){
+  var s=rstatus(r);
+  if(s==='Approved') return '<span class="pill ok">Approved</span>';
+  if(s==='Rejected') return '<span class="pill crit">Rejected</span>';
+  if(s==='Pending Review') return '<span class="pill warn">Pending review</span>';
+  return esc(s||'Unreviewed');
+}
+/* A row's overlay needs the row itself as its containing block. Where a browser
+   ignores position on a table row the overlay is left off, so the button stays
+   the click target instead of the overlay stretching across the dialog. */
+var ROWSTRETCH=(function(){
+  var t=document.createElement('table');
+  t.setAttribute('style','position:absolute;left:-9999px;top:0;width:120px');
+  t.innerHTML='<tbody><tr style="position:relative;top:20px"><td>x</td></tr></tbody>';
+  document.body.appendChild(t);
+  var tr=t.getElementsByTagName('tr')[0], tb=t.getElementsByTagName('tbody')[0];
+  var ok=(tr.getBoundingClientRect().top-tb.getBoundingClientRect().top)>=18;
+  document.body.removeChild(t);
+  return ok;
+})();
+function renderList(kind){
+  var rows=recipesFor(kind);
+  $('mback').hidden=true;
+  $('mtitle').className='';
+  $('mtitle').textContent=VIEWS[kind].title;
+  $('mcount').textContent=rows.length+(rows.length===1?' recipe':' recipes');
+  $('mbody').innerHTML = rows.length
+    ? '<table'+(ROWSTRETCH?' class="stretch"':'')+'><thead><tr><th>Recipe ID</th><th>Name</th><th>Status</th>'+
+      '<th class="n" style="text-align:right">Ingredients</th></tr></thead><tbody>'+
+      rows.map(function(r){
+        return '<tr class="rowr"><td class="id"><button type="button" class="rowbtn" data-rid="'+esc(r.id)+
+          '" aria-label="Open '+esc(r.id)+' '+esc(r.name)+'">'+esc(r.id)+'</button></td><td>'+esc(r.name)+
+          '</td><td>'+statusCell(r)+'</td><td class="n">'+((r.ing&&r.ing.length)||0)+'</td></tr>';}).join('')+
+      '</tbody></table>'
+    : '<p class="empty">Nothing to show.</p>';
+}
+/* Quantity and its unit read as one value, and either can be blank in the log. */
+function qty(i){
+  var s=(String(i&&i.q!=null?i.q:'').trim()+' '+String(i&&i.u!=null?i.u:'').trim()).trim();
+  return s||'—';
+}
+function renderDetail(r){
+  var ing=r.ing||[];
+  $('mback').hidden=false;
+  $('mtitle').className='big';
+  $('mtitle').textContent=r.name||r.id;
+  $('mcount').textContent=ing.length+(ing.length===1?' ingredient':' ingredients');
+  $('mbody').innerHTML=
+    '<div class="meta"><div><div class="k">Recipe ID</div><div class="v id">'+esc(r.id)+'</div></div>'+
+    '<div><div class="k">Status</div><div class="v">'+statusCell(r)+'</div></div>'+
+    '<div><div class="k">Created by</div><div class="v">'+esc(r.by||'—')+'</div></div></div>'+
+    '<h4>Ingredients</h4>'+
+    (ing.length
+      ? '<table><thead><tr><th>Ingredient</th><th class="n" style="text-align:right">Quantity</th></tr></thead><tbody>'+
+        ing.map(function(i){return '<tr><td>'+esc(i.n)+'</td><td class="n">'+esc(qty(i))+'</td></tr>';}).join('')+
+        '</tbody></table>'
+      : '<p class="empty">No ingredients recorded.</p>');
+}
+function rowButton(id){
+  var bs=$('mbody').getElementsByClassName('rowbtn');
+  for(var i=0;i<bs.length;i++){ if(bs[i].getAttribute('data-rid')===String(id)) return bs[i]; }
+  return null;
+}
+function focusQuietly(el){
+  if(!el||!el.focus) return;
+  try{ el.focus({preventScroll:true}); }catch(err){ el.focus(); }
+}
+/* One paint for whichever view is up, so the 60-second refresh never throws
+   away the list you are reading or the recipe you opened. */
+function paint(){
+  var r=DETAIL?findRecipe(DETAIL):null;
+  if(DETAIL&&!r) DETAIL=null;
+  if(r) renderDetail(r); else renderList(OPEN);
+}
+function openModal(kind){
+  if(!VIEWS[kind]||!ALL) return;
+  BACKTO=document.activeElement;
+  OPEN=kind; DETAIL=null; LISTSCROLL=0;
+  renderList(kind);
+  $('modal').hidden=false;
+  $('mbody').scrollTop=0;
+  document.body.style.overflow='hidden';
+  $('mclose').focus();
+}
+function showDetail(id){
+  var r=findRecipe(id);
+  if(!r) return;
+  LISTSCROLL=$('mbody').scrollTop;
+  DETAIL=String(id);
+  renderDetail(r);
+  $('mbody').scrollTop=0;
+  $('mback').focus();
+}
+/* Back returns to the same filter, the same scroll position, and the row you
+   left from. */
+function showList(){
+  var from=DETAIL;
+  DETAIL=null;
+  renderList(OPEN);
+  $('mbody').scrollTop=LISTSCROLL;
+  focusQuietly((from&&rowButton(from))||$('mclose'));
+}
+function closeModal(){
+  if(!OPEN) return;
+  OPEN=null; DETAIL=null; LISTSCROLL=0;
+  $('modal').hidden=true;
+  $('mbody').innerHTML='';
+  document.body.style.overflow='';
+  if(BACKTO&&BACKTO.focus) BACKTO.focus();
+  BACKTO=null;
+}
+function up(el,attr){
+  while(el&&el!==document){ if(el.getAttribute&&el.getAttribute(attr)!=null) return el; el=el.parentNode; }
+  return null;
+}
+function barRow(label,n,max){
+  var pct = max>0 ? Math.round(n/max*100) : 0;
+  return '<tr><td>'+esc(label)+'</td>'+
+    '<td style="width:45%"><div class="bar"><span style="width:'+pct+'%"></span></div></td>'+
+    '<td class="n">'+n+'</td></tr>';
+}
+
+function draw(d){
+  $('sub').textContent = dmy(d.today)+' · '+d.library.total+' creations in the log';
+  $('live').textContent = 'updated '+ago(d.at);
+
+  $('banner').innerHTML = d.trialRows===0
+    ? '<div class="note"><b>Trial activity is empty.</b> Everything below the library counts reads '+
+      'from <b>R&amp;D TRIAL LOG</b>, which has no rows yet — so today, pipeline and status all show zero. '+
+      'They fill in on their own as R&amp;D submits through the intake form.</div>'
+    : '';
+
+  var L=d.library;
+  /* A tile only becomes a button when there is something behind it to show. */
+  var can=!!(ALL&&ALL.recipes);
+  function act(kind,n){ return (can&&n>0)?{filter:kind}:null; }
+  $('lib').innerHTML =
+    tile('Total creations', L.total, '', '', act('all',L.total)) +
+    tile('Approved', L.approved, Math.round(L.approved/Math.max(L.total,1)*100)+'% of library','good', act('approved',L.approved)) +
+    tile('Pending review', L.pendingReview, L.pendingReview?'waiting on you':'nothing waiting', L.pendingReview?'warn':'', L.pendingReview>0?{href:'approve.html'}:null) +
+    tile('Unreviewed', L.unreviewed, 'never assessed', '', act('unreviewed',L.unreviewed)) +
+    tile('Rejected', L.rejected, '', '', act('rejected',L.rejected)) +
+    tile('Costing done', L.costingDone, L.costingPending+' still pending', L.costingDone?'good':'warn');
+
+  var T=d.todayCounts;
+  $('today').innerHTML =
+    tile('New drinks', T.created) + tile('Trials done', T.trials) +
+    tile('Approved', T.approved, '', T.approved?'good':'') +
+    tile('Failed', T.failed, '', T.failed?'crit':'') +
+    tile('Revision', T.revision, '', T.revision?'warn':'');
+
+  var A=d.accumulated;
+  $('accum').innerHTML='<table><tr><th>Period</th><th class="n" style="text-align:right">New drinks</th>'+
+    '<th class="n" style="text-align:right">Trials</th></tr>'+
+    [['Today',A.today],['This week',A.week],['This month',A.month],[d.today.slice(0,4)+' to date',A.year]]
+      .map(function(x){return '<tr><td>'+x[0]+'</td><td class="n">'+x[1].drinks+'</td><td class="n">'+x[1].trials+'</td></tr>';})
+      .join('')+'</table>';
+
+  var P=d.pics, names=Object.keys(P);
+  $('pics').innerHTML='<table><tr><th>Person</th><th class="n" style="text-align:right">New drinks</th>'+
+    '<th class="n" style="text-align:right">Trials</th><th class="n" style="text-align:right">This month</th></tr>'+
+    names.map(function(n){return '<tr><td>'+esc(n)+'</td><td class="n">'+P[n].drinks+'</td>'+
+      '<td class="n">'+P[n].trials+'</td><td class="n">'+P[n].monthTrials+'</td></tr>';}).join('')+
+    '<tr><td><b>Total</b></td><td class="n"><b>'+names.reduce(function(a,n){return a+P[n].drinks;},0)+
+    '</b></td><td class="n"><b>'+names.reduce(function(a,n){return a+P[n].trials;},0)+
+    '</b></td><td class="n"><b>'+names.reduce(function(a,n){return a+P[n].monthTrials;},0)+'</b></td></tr></table>';
+
+  var mx=Math.max.apply(null,d.pipeline.map(function(s){return s.n;}).concat([0]));
+  $('pipe').innerHTML = mx===0
+    ? '<p class="empty">No trials recorded yet.</p>'
+    : '<table>'+d.pipeline.map(function(s){return barRow(s.stage,s.n,mx);}).join('')+'</table>';
+
+  var S=d.status;
+  var st=[['In R&D',S.inRnD,''],['Waiting',S.waiting,''],['Revision',S.revision,''],
+          ['Pending review',S.pending,S.pending?'warn':''],['Completed',S.completed,''],
+          ['Overdue',S.overdue,S.overdue?'crit':'']];
+  var smx=Math.max.apply(null,st.map(function(x){return x[1];}).concat([0]));
+  $('stat').innerHTML = smx===0
+    ? '<p class="empty">No trials recorded yet.</p>'
+    : '<table>'+st.map(function(x){
+        return '<tr><td>'+x[0]+(x[2]?' <span class="pill '+x[2]+'">'+(x[2]==='crit'?'overdue':'waiting')+'</span>':'')+
+          '</td><td style="width:40%"><div class="bar"><span style="width:'+
+          (smx?Math.round(x[1]/smx*100):0)+'%"></span></div></td><td class="n">'+x[1]+'</td></tr>';}).join('')+'</table>';
+
+  var V=d.versions;
+  $('ver').innerHTML =
+    tile('Recipes with &gt;1 version', V.multiVersion) +
+    tile('Major updates this month', V.majorThisMonth) +
+    tile('Minor updates this month', V.minorThisMonth);
+
+  $('pcount').innerHTML = d.pendingApproval.length
+    ? '<span class="pill warn">'+d.pendingApproval.length+'</span>' : '<span class="pill ok">clear</span>';
+  $('pend').innerHTML = d.pendingApproval.length
+    ? '<table><tr><th>Recipe</th><th>Version</th><th>By</th><th>Submitted</th></tr>'+
+      d.pendingApproval.map(function(p){
+        return '<tr class="lnk" data-href="approve.html"><td class="id"><a href="approve.html">'+esc(p.id)+
+          '</a></td><td>'+esc(p.ver)+'</td><td>'+esc(p.pic)+
+          '</td><td>'+dmy(p.date)+'</td></tr>';}).join('')+'</table>'+
+      '<p style="margin:11px 0 0"><a class="btn" href="approve.html">Review them →</a></p>'
+    : '<p class="empty">Nothing waiting for approval.</p>';
+
+  $('ocount').innerHTML = d.overdue.length
+    ? '<span class="pill crit">'+d.overdue.length+'</span>' : '<span class="pill ok">clear</span>';
+  $('over').innerHTML = d.overdue.length
+    ? '<table><tr><th>Recipe</th><th>Owner</th><th class="n" style="text-align:right">Days over</th></tr>'+
+      d.overdue.map(function(o){
+        return '<tr><td class="id">'+esc(o.id)+'</td><td>'+esc(o.pic||'—')+
+          '</td><td class="n">'+o.days+'</td></tr>';}).join('')+'</table>'
+    : '<p class="empty">Nothing overdue.</p>';
+
+  $('latest').innerHTML = d.latest.length
+    ? '<table><tr><th>Recipe</th><th>Name</th><th>Version</th><th>PIC</th><th>Status</th><th>Date</th></tr>'+
+      d.latest.map(function(t){
+        return '<tr><td class="id">'+esc(t.id)+'</td><td>'+esc(t.name)+'</td><td>'+esc(t.ver)+
+          '</td><td>'+esc(t.pic)+'</td><td>'+esc(t.status)+'</td><td>'+dmy(t.date)+'</td></tr>';}).join('')+'</table>'
+    : '<p class="empty">No trials recorded yet.</p>';
+}
+
+function pull(){
+  return Promise.all([
+    fetch('dashboard.json?t='+Date.now(),{cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }),
+    fetch('all-recipes.json?t='+Date.now(),{cache:'no-store'})
+      .then(function(r){ return r.ok?r.json():null; })
+      .catch(function(){ return null; })
+  ]).then(function(res){
+    if(res[1]&&res[1].recipes) ALL=res[1];
+    draw(res[0]);
+    if(OPEN){ var sc=$('mbody').scrollTop; paint(); $('mbody').scrollTop=sc; }
+  }).catch(function(){ $('live').textContent='could not reach the data'; });
+}
+
+$('lib').addEventListener('click',function(e){
+  var b=up(e.target,'data-filter');
+  if(b) openModal(b.getAttribute('data-filter'));
+});
+$('pend').addEventListener('click',function(e){
+  var tr=up(e.target,'data-href');
+  if(tr&&e.target.tagName!=='A') GC_GO(tr.getAttribute('data-href'));
+});
+$('modal').addEventListener('click',function(e){
+  var r=up(e.target,'data-rid');
+  if(r){ showDetail(r.getAttribute('data-rid')); return; }
+  if(up(e.target,'data-back')){ showList(); return; }
+  if(up(e.target,'data-close')) closeModal();
+});
+document.addEventListener('keydown',function(e){
+  if(OPEN&&(e.key==='Escape'||e.key==='Esc')) closeModal();
+});
+
+pull();
+setInterval(pull,60000);
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible') pull();});
+</script>
+</body></html>

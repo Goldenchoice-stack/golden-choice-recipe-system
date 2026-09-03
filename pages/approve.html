@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Approvals — Golden Choice R&amp;D</title>
+<style>
+:root{
+  --bg:#F5F7F4;--surface:#fff;--surface-2:#FAFBF9;--field:#fff;
+  --line:#E1E6DF;--line-strong:#CBD3C8;
+  --ink:#131B16;--ink-2:#3A463F;--muted:#65706A;
+  --accent:#1D5C48;--accent-2:#2A7A5F;--accent-tint:#E7F0EB;
+  --warn:#8A6212;--warn-tint:#FBF1DC;
+  --stop:#963B37;--stop-tint:#F9E7E5;
+  --shadow:0 1px 2px rgba(19,27,22,.05),0 4px 14px rgba(19,27,22,.05);
+  --mono:"Cascadia Mono",Consolas,"SF Mono",ui-monospace,monospace;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0F1512;--surface:#161D19;--surface-2:#1B231E;--field:#111815;
+  --line:#27302A;--line-strong:#39443C;
+  --ink:#E8EEE9;--ink-2:#BAC5BE;--muted:#8B968F;
+  --accent:#6BC79E;--accent-2:#8AD9B5;--accent-tint:#172C23;
+  --warn:#E0B15C;--warn-tint:#2E2413;
+  --stop:#E58C86;--stop-tint:#2F1A19;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",-apple-system,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:24px 20px 80px;display:flex;flex-direction:column;gap:18px}
+.masthead{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;padding-bottom:15px;border-bottom:2px solid var(--ink)}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 5px}
+h1{margin:0;font-size:25px;font-weight:700;letter-spacing:-.018em}
+.sub{margin:5px 0 0;color:var(--muted);font-size:13.5px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.card>h2{margin:0;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.card>h2 .id{font-family:var(--mono);color:var(--accent);font-size:13px;text-transform:none;letter-spacing:0}
+.card>h2 .sp{flex:1}
+.card .body{padding:16px;display:flex;flex-direction:column;gap:13px}
+.vbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-family:var(--mono);font-size:16px}
+.vbar .arrow{color:var(--muted)}.vbar .to{color:var(--accent);font-weight:700}
+.pill{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:3px}
+.pill.ok{background:var(--accent-tint);color:var(--accent)}
+.pill.warn{background:var(--warn-tint);color:var(--warn)}
+.pill.stop{background:var(--stop-tint);color:var(--stop)}
+.panel{border-radius:7px;padding:11px 14px;font-size:13px;color:var(--ink-2)}
+.panel.ok{background:var(--accent-tint);border:1px solid var(--accent)}
+.panel.warn{background:var(--warn-tint);border:1px solid var(--warn)}
+.panel.stop{background:var(--stop-tint);border:1px solid var(--stop)}
+.panel b{color:var(--ink)}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.t td{padding:5px 0;border-bottom:1px solid var(--line);vertical-align:top}
+table.t td.v{font-family:var(--mono);white-space:nowrap;padding-left:10px;text-align:right}
+.old{color:var(--muted);text-decoration:line-through}
+.now{color:var(--accent);font-weight:600}
+.meta{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));font-size:13px}
+.meta div span{display:block;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:2px}
+.btn{appearance:none;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer;padding:9px 16px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink)}
+.btn:hover{border-color:var(--ink-2)}
+.btn.ok{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.btn.ok:hover{background:var(--accent-2)}
+.btn.no{border-color:var(--stop);color:var(--stop)}
+.btn.no:hover{background:var(--stop-tint)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+input,select,textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--field);border:1px solid var(--line-strong);border-radius:6px;padding:8px 10px;width:100%}
+textarea{resize:vertical;min-height:58px}
+.f{display:flex;flex-direction:column;gap:5px}
+.f>label{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.hint{font-size:11.5px;color:var(--muted)}
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+.empty .big{font-size:34px;margin-bottom:10px;color:var(--accent)}
+footer{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+a{color:var(--accent)}
+</style>
+</head><body>
+<div class="wrap">
+
+<header class="masthead">
+  <div>
+    <p class="eyebrow">Golden Choice Sdn. Bhd. — R&amp;D</p>
+    <h1>Approvals</h1>
+    <p class="sub" id="sub">Loading…</p>
+  </div>
+  <div class="row"><a class="btn" href="intake.html">← Back to intake</a><a class="btn" href="index.html">Recipe Finder</a><a class="btn" href="dashboard.html">Dashboard →</a></div>
+</header>
+
+<div id="list"></div>
+
+<footer>
+  Only an approved version reaches the Recipe Finder. Rejecting a version leaves the previously
+  approved recipe exactly as it was — Sales never loses the recipe they are already using.
+</footer>
+</div>
+
+<script>
+'use strict';
+/* Set by the server when it serves this page to a signed-in name. */
+var ROLE=(window.GC_USER||{}).role||'';
+var $=function(i){return document.getElementById(i);};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function when(iso){ if(!iso) return '';
+  var d=new Date(iso); if(isNaN(d)) return iso;
+  var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.getDate()+' '+M[d.getMonth()]+' '+d.getFullYear()+', '+
+    ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
+
+function load(){
+  fetch('/api/pending?t='+Date.now(),{cache:'no-store'})
+    .then(function(r){return r.json();}).then(draw)
+    .catch(function(){ $('sub').textContent='Could not load the approval queue.'; });
+}
+
+function draw(d){
+  var items=(d.items||[]).filter(function(i){return i.decision!=='APPROVED'&&i.decision!=='REJECTED';});
+  $('sub').textContent = items.length
+    ? items.length+' version'+(items.length===1?'':'s')+' waiting for your decision'
+    : 'Nothing waiting for approval.';
+
+  if(!items.length){
+    $('list').innerHTML='<div class="card"><div class="empty"><div class="big">✓</div>'+
+      '<p style="margin:0">Nothing waiting for approval.<br>'+
+      '<span class="hint">Submitted versions from R&amp;D will appear here.</span></p></div></div>';
+    return;
+  }
+
+  $('list').innerHTML=items.map(function(it,ix){
+    var isNew=it.mode==='new';
+    var ch=it.changes||[];
+    return '<div class="card" id="c'+ix+'">'+
+      '<h2><span class="id">'+esc(it.id)+'</span> '+esc(it.name)+
+        '<span class="sp"></span><span class="pill warn">Pending review</span></h2>'+
+      '<div class="body">'+
+
+      '<div class="vbar">'+(isNew
+        ? '<span class="to">V1.0</span> <span class="hint">first version</span>'
+        : '<span>'+esc(it.fromVersion||'V1.0')+'</span><span class="arrow">→</span>'+
+          '<span class="to">'+esc(it.toVersion)+'</span>'+
+          '<span class="hint">'+(it.updateType==='minor'?'minor information update':'major recipe update')+'</span>')+
+      '</div>'+
+
+      (!isNew ? '<div class="panel warn">Approving this makes <b>'+esc(it.toVersion)+'</b> the current recipe '+
+        'and marks <b>'+esc(it.fromVersion||'V1.0')+'</b> as superseded. Rejecting it leaves '+
+        esc(it.fromVersion||'V1.0')+' exactly as it is.</div>' : '')+
+
+      '<div class="meta">'+
+        '<div><span>Submitted by</span>'+esc(it.by)+'</div>'+
+        '<div><span>Submitted</span>'+when(it.submittedAt)+'</div>'+
+        (it.category?'<div><span>Category</span>'+esc(it.category)+'</div>':'')+
+        (it.zh?'<div><span>Chinese name</span>'+esc(it.zh)+'</div>':'')+
+        (it.reason?'<div><span>Reason</span>'+esc(it.reason)+'</div>':'')+
+        (it.costPerServing!=null?'<div><span>Cost / serving</span>RM'+Number(it.costPerServing).toFixed(2)+'</div>':
+          (it.costingPending?'<div><span>Cost / serving</span><span style="color:var(--warn)">pending</span></div>':''))+
+        (it.serving?'<div><span>Serving size</span>'+esc(it.serving)+' ML</div>':'')+
+        (it.price?'<div><span>Selling price</span>RM'+esc(it.price)+'</div>':'')+
+        (it.difficulty?'<div><span>Difficulty</span>'+esc(it.difficulty)+'</div>':'')+
+        (it.equipment?'<div><span>Equipment</span>'+esc(it.equipment)+'</div>':'')+
+      '</div>'+
+
+      /* The photo is uploaded with the submission and kept in Drive, so it can
+         be looked at before approving -- nobody can judge a drink from a
+         filename. */
+      (it.photoFile?'<div class="f"><label>Photo of the finished drink</label>'+
+        '<img src="'+GC_PHOTO(it.photoFile)+'" alt="'+esc(it.name)+'"'+
+        ' style="max-width:100%;border-radius:10px;display:block;margin-top:6px"></div>':'')+
+
+      (it.remarks?'<div class="f"><label>Remarks from R&amp;D</label><div>'+esc(it.remarks)+'</div></div>':'')+
+
+      (ch.length?'<div class="f"><label>What changed</label><table class="t">'+ch.map(function(c){
+        return '<tr><td>'+esc(c.field)+' <span class="hint">'+esc(c.kind)+'</span></td><td class="v">'+
+          (c.old?'<span class="old">'+esc(c.old)+'</span> ':'')+
+          (c.now?'<span class="now">'+esc(c.now)+'</span>':'<span class="hint">removed</span>')+
+          '</td></tr>';}).join('')+'</table></div>':'')+
+
+      '<div class="f"><label>Full recipe as submitted</label><table class="t">'+
+        (it.ingredients||[]).map(function(i){
+          return '<tr><td>'+esc(i.n)+'</td><td class="v">'+esc(i.q)+' '+esc(i.u)+'</td></tr>';}).join('')+
+      '</table></div>'+
+
+      (it.method?'<div class="f"><label>Method</label><div class="hint" style="white-space:pre-wrap">'+esc(it.method)+'</div></div>':'')+
+
+      /* Only the manager decides, so only the manager is given anything to
+         press. The server refuses the request either way. */
+      (ROLE==='manager' ? (
+      '<div class="f"><label for="who'+ix+'">Your name</label>'+
+        '<select id="who'+ix+'"><option value="">— choose —</option><option>Owner</option>'+
+        '<option>Sakura</option><option>Robin</option></select></div>'+
+      '<div class="f"><label for="rem'+ix+'">Approval remarks</label>'+
+        '<textarea id="rem'+ix+'" placeholder="Optional for approval, expected when rejecting."></textarea></div>'+
+
+      '<div class="row">'+
+        '<button class="btn ok" data-act="APPROVED" data-ix="'+ix+'">Approve '+esc(it.toVersion)+'</button>'+
+        '<button class="btn no" data-act="REJECTED" data-ix="'+ix+'">Reject</button>'+
+        '<span class="hint" id="m'+ix+'"></span>'+
+      '</div>')
+      : '<p class="hint" style="margin:0">Read-only for you. Only the manager approves or rejects.</p>')+
+      '</div></div>';
+  }).join('');
+
+  $('list').querySelectorAll('button[data-act]').forEach(function(b){
+    b.addEventListener('click',function(){ decide(items[+b.dataset.ix], b.dataset.act, +b.dataset.ix, b); });
+  });
+}
+
+function decide(item,decision,ix,btn){
+  var who=$('who'+ix).value, rem=$('rem'+ix).value.trim(), msg=$('m'+ix);
+  if(!who){ msg.textContent='Choose your name first.'; return; }
+  if(decision==='REJECTED' && !rem){ msg.textContent='Please say why it is being rejected.'; return; }
+  var card=$('c'+ix);
+  card.querySelectorAll('button').forEach(function(b){b.disabled=true;});
+  msg.textContent='Recording…';
+  fetch('/api/approve',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({file:item.file,id:item.id,version:item.toVersion,decision:decision,by:who,remarks:rem})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){ msg.textContent=d.error||'Failed.'; card.querySelectorAll('button').forEach(function(b){b.disabled=false;}); return; }
+    card.querySelector('.body').innerHTML='<div class="panel '+(decision==='APPROVED'?'ok':'stop')+'">'+
+      '<b>'+esc(item.id)+' '+esc(item.toVersion)+' '+(decision==='APPROVED'?'approved':'rejected')+'</b> by '+esc(who)+'.'+
+      (decision==='APPROVED'
+        ? (d.supersededCount?' '+esc(item.fromVersion||'the previous version')+' is now superseded.':'')
+        : ' '+esc(item.fromVersion||'The previous approved version')+' remains the current recipe.')+
+      (d.sheet?'' : '<br><span class="hint">Recorded here; it will be written into the Google Sheet once the connector is deployed.</span>')+
+      '</div>';
+    setTimeout(load,1400);
+  }).catch(function(e){
+    msg.textContent='Failed: '+e.message;
+    card.querySelectorAll('button').forEach(function(b){b.disabled=false;});
+  });
+}
+
+load();
+setInterval(load,60000);
+</script>
+</body></html>

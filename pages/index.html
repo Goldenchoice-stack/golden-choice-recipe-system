@@ -1,0 +1,451 @@
+<title>Golden Choice Recipe Finder</title>
+<style>
+:root{
+  --bg:#F5F7F4; --surface:#FFFFFF; --surface-2:#FAFBF9; --field:#FFFFFF;
+  --line:#E1E6DF; --line-strong:#CBD3C8;
+  --ink:#131B16; --ink-2:#3A463F; --muted:#65706A;
+  --accent:#1D5C48; --accent-2:#2A7A5F; --accent-tint:#E7F0EB;
+  --warn:#8A6212; --warn-tint:#FBF1DC;
+  --star:#B8860B;
+  --shadow:0 1px 2px rgba(19,27,22,.05), 0 4px 14px rgba(19,27,22,.05);
+  --sans:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"SF Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1512; --surface:#161D19; --surface-2:#1B231E; --field:#111815;
+  --line:#27302A; --line-strong:#39443C;
+  --ink:#E8EEE9; --ink-2:#BAC5BE; --muted:#8B968F;
+  --accent:#6BC79E; --accent-2:#8AD9B5; --accent-tint:#172C23;
+  --warn:#E0B15C; --warn-tint:#2E2413; --star:#E0B15C;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+}}
+:root[data-theme="dark"]{
+  --bg:#0F1512; --surface:#161D19; --surface-2:#1B231E; --field:#111815;
+  --line:#27302A; --line-strong:#39443C;
+  --ink:#E8EEE9; --ink-2:#BAC5BE; --muted:#8B968F;
+  --accent:#6BC79E; --accent-2:#8AD9B5; --accent-tint:#172C23;
+  --warn:#E0B15C; --warn-tint:#2E2413; --star:#E0B15C;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+  font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px; margin:0 auto; padding:22px 18px 70px}
+
+header.top{display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;
+  justify-content:space-between; padding-bottom:14px; border-bottom:2px solid var(--ink); margin-bottom:18px}
+.eyebrow{font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent); font-weight:700; margin:0 0 5px}
+h1{margin:0; font-size:25px; line-height:1.15; letter-spacing:-.018em; font-weight:700}
+.sub{margin:5px 0 0; color:var(--muted); font-size:13px; max-width:60ch}
+
+/* search */
+.fresh{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.btn.refresh{background:var(--surface); border:1px solid var(--line-strong); white-space:nowrap}
+.btn.refresh:disabled{opacity:.5; cursor:wait}
+.stamp{font-size:12px; color:var(--muted); white-space:nowrap}
+.stamp.ok{color:var(--accent)}
+.searchbar{position:relative; margin-bottom:12px}
+.searchbar input{width:100%; font:inherit; font-size:17px; padding:14px 44px 14px 16px;
+  border:2px solid var(--line-strong); border-radius:9px; background:var(--field); color:var(--ink)}
+.searchbar input:focus{outline:none; border-color:var(--accent)}
+.searchbar .clr{position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  appearance:none; border:none; background:none; color:var(--muted); font-size:22px;
+  cursor:pointer; padding:4px 8px; line-height:1}
+.searchbar .clr:hover{color:var(--ink)}
+
+.bar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px}
+.chip{appearance:none; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+  padding:6px 12px; border-radius:20px; border:1px solid var(--line-strong);
+  background:var(--surface); color:var(--ink-2)}
+.chip:hover{border-color:var(--ink-2); color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--bg)}
+.chip.star[aria-pressed="true"]{background:var(--star); border-color:var(--star)}
+.spacer{flex:1}
+select.sort{font:inherit; font-size:13px; padding:6px 10px; border-radius:7px;
+  border:1px solid var(--line-strong); background:var(--surface); color:var(--ink)}
+.count{font-size:13.5px; color:var(--ink-2); margin-bottom:14px}
+.count b{color:var(--ink); font-size:15px}
+
+/* cards */
+.grid{display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  box-shadow:var(--shadow); padding:14px 15px; display:flex; flex-direction:column; gap:8px;
+  cursor:pointer; text-align:left; font:inherit; color:inherit; width:100%}
+.card:hover{border-color:var(--accent)}
+.card:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.card .nm{font-size:15.5px; font-weight:650; line-height:1.3; text-wrap:balance}
+.card .nm .zh{font-weight:450; color:var(--muted)}
+.card .meta{display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:11.5px; color:var(--muted)}
+.card .rid{font-family:var(--mono); font-size:11px; color:var(--accent)}
+.pill{display:inline-block; font-size:10px; font-weight:700; letter-spacing:.07em;
+  text-transform:uppercase; padding:2px 7px; border-radius:3px;
+  background:var(--accent-tint); color:var(--accent)}
+.card .ings{font-size:12.5px; color:var(--ink-2); line-height:1.5;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.card .fav{position:absolute}
+.cardwrap{position:relative}
+.favbtn{position:absolute; top:9px; right:9px; appearance:none; border:none; background:none;
+  font-size:17px; line-height:1; cursor:pointer; padding:4px; color:var(--line-strong)}
+.favbtn[aria-pressed="true"]{color:var(--star)}
+.favbtn:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+
+.empty{padding:40px 16px; text-align:center; color:var(--muted); font-size:14px}
+
+/* detail */
+.ovl{position:fixed; inset:0; background:rgba(10,16,13,.5); display:flex;
+  align-items:flex-start; justify-content:center; padding:24px 16px; overflow-y:auto; z-index:50}
+.ovl[hidden]{display:none}
+.sheet{background:var(--surface); border:1px solid var(--line); border-radius:12px;
+  max-width:680px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.sheet .hd{display:flex; gap:12px; align-items:flex-start; padding:18px 20px 14px;
+  border-bottom:1px solid var(--line)}
+.sheet .hd h2{margin:0; font-size:20px; line-height:1.25; font-weight:700; text-wrap:balance}
+.sheet .hd .x{appearance:none; border:1px solid var(--line-strong); background:var(--surface-2);
+  color:var(--muted); border-radius:7px; font-size:20px; line-height:1; cursor:pointer;
+  padding:5px 10px; margin-left:auto}
+.sheet .bd{padding:18px 20px 20px; display:flex; flex-direction:column; gap:18px}
+.kv{display:grid; grid-template-columns:auto 1fr; gap:6px 16px; font-size:13.5px}
+.kv dt{color:var(--muted); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  font-weight:700; padding-top:2px}
+.kv dd{margin:0; color:var(--ink)}
+.na{color:var(--muted); font-style:italic}
+h3.sec{margin:0 0 8px; font-size:11px; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--muted); font-weight:700}
+table.ing{width:100%; border-collapse:collapse; font-size:14px}
+table.ing td{padding:7px 0; border-bottom:1px solid var(--line)}
+table.ing tr:last-child td{border-bottom:none}
+table.ing td.q{text-align:right; font-family:var(--mono); white-space:nowrap; padding-left:12px;
+  color:var(--ink-2); font-size:13px}
+.notice{padding:11px 13px; border-radius:8px; background:var(--warn-tint);
+  border:1px solid var(--warn); font-size:12.5px; color:var(--ink-2)}
+.notice b{color:var(--ink)}
+.acts{display:flex; flex-wrap:wrap; gap:8px}
+.btn{appearance:none; font:inherit; font-size:13.5px; font-weight:650; cursor:pointer;
+  padding:8px 14px; border-radius:7px; border:1px solid var(--line-strong);
+  background:var(--surface); color:var(--ink)}
+.btn:hover{border-color:var(--ink-2)}
+a.btn{text-decoration:none}
+.btn.pri{background:var(--accent); border-color:var(--accent); color:var(--bg)}
+.msg{font-size:12.5px; color:var(--accent); align-self:center}
+
+footer{margin-top:30px; padding-top:14px; border-top:1px solid var(--line);
+  color:var(--muted); font-size:12px}
+footer b{color:var(--ink-2)}
+
+@media (max-width:560px){
+  h1{font-size:21px}
+  .grid{grid-template-columns:1fr}
+  .ovl{padding:0}
+  .sheet{border-radius:0; min-height:100%}
+}
+@media print{
+  body{background:#fff}
+  .top,.searchbar,.bar,.count,.grid,footer,.sheet .hd .x,.acts{display:none!important}
+  .ovl{position:static; background:none; padding:0; overflow:visible}
+  .sheet{border:none; box-shadow:none; max-width:100%}
+}
+@media (prefers-reduced-motion:no-preference){.btn,.chip,.card{transition:border-color .15s,background-color .15s}}
+</style>
+
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <p class="eyebrow">Golden Choice Sdn. Bhd.</p>
+      <h1>Recipe Finder</h1>
+      <p class="sub">Approved recipes only. Search by drink name in English or Chinese, ingredient or recipe ID.</p>
+    </div>
+    <div class="fresh">
+      <a class="btn" href="intake.html">Intake</a><button class="btn refresh" id="refresh">↻ Refresh</button>
+      <span class="stamp" id="freshness">loading…</span>
+    </div>
+  </header>
+
+  <div class="searchbar">
+    <input id="q" type="search" autocomplete="off"
+           placeholder="Search recipe, drink or ingredient…" aria-label="Search recipes">
+    <button class="clr" id="clr" aria-label="Clear search" hidden>&times;</button>
+  </div>
+
+  <div class="bar" id="chips"></div>
+  <div class="bar">
+    <button class="chip star" id="favOnly" aria-pressed="false">★ Favourites</button>
+    <button class="chip" id="clearAll">Clear filters</button>
+    <span class="spacer"></span>
+    <label for="sort" style="font-size:12.5px;color:var(--muted)">Sort</label>
+    <select class="sort" id="sort">
+      <option value="name">Name A–Z</option>
+      <option value="new">Newest</option>
+      <option value="ing">Most ingredients</option>
+    </select>
+  </div>
+
+  <p class="count" id="count"></p>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden></div>
+
+  <footer>
+    <b>Approved recipes only.</b> Drafts, trials, revisions and rejected recipes are never shown here.
+    This page is read-only — the official recipe can only be changed by R&amp;D.
+    <span id="stamp"></span>
+  </footer>
+</div>
+
+<div class="ovl" id="ovl" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div class="hd">
+      <div>
+        <h2 id="dTitle"></h2>
+        <div style="margin-top:5px"><span class="pill">Approved</span>
+          <span class="rid" id="dId" style="margin-left:7px;font-family:var(--mono);color:var(--accent);font-size:12px"></span></div>
+      </div>
+      <button class="x" id="dClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="bd" id="dBody"></div>
+  </div>
+</div>
+
+<script>
+let DATA = { generated:'', at:'', count:0, recipes:[] };
+
+function ago(iso){
+  if(!iso) return '';
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime())/1000);
+  if (s < 90)    return 'just now';
+  if (s < 5400)  return Math.round(s/60) + ' min ago';
+  if (s < 172800)return Math.round(s/3600) + ' hr ago';
+  return Math.round(s/86400) + ' days ago';
+}
+
+function load(manual){
+  const btn = document.getElementById('refresh');
+  const out = document.getElementById('freshness');
+  if (manual) { btn.disabled = true; out.textContent = 'checking…'; out.className = 'stamp'; }
+  return fetch('recipes.json?t=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => {
+      const before = DATA.count;
+      DATA = d;
+      start();
+      if (manual) {
+        out.className = 'stamp ok';
+        out.textContent = (d.count === before)
+          ? 'Up to date · ' + d.count + ' recipes'
+          : 'Updated · ' + d.count + ' recipes';
+        setTimeout(showFresh, 2600);
+      } else showFresh();
+    })
+    .catch(e => {
+      out.className = 'stamp';
+      out.textContent = 'Could not load (' + e + ')';
+    })
+    .finally(() => { if (manual) btn.disabled = false; });
+}
+
+function showFresh(){
+  const out = document.getElementById('freshness');
+  out.className = 'stamp';
+  out.textContent = DATA.at ? 'Updated ' + ago(DATA.at) : (DATA.generated || '');
+}
+
+document.getElementById('refresh').addEventListener('click', () => load(true));
+setInterval(() => { if (!document.hidden) load(false); }, 120000);
+setInterval(showFresh, 30000);
+load(false);
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- favourites ---------- */
+let FAV = new Set();
+try { FAV = new Set(JSON.parse(localStorage.getItem('gc-fav') || '[]')); } catch (e) {}
+const saveFav = () => { try { localStorage.setItem('gc-fav', JSON.stringify([...FAV])); } catch (e) {} };
+
+/* ---------- ingredient filter chips: the 8 most-used, real names only ---------- */
+let activeIng = null;
+let useCount = {}, TOP = [];
+function buildChips(){
+useCount = {};
+DATA.recipes.forEach(r => new Set(r.i.map(x => x.n)).forEach(n => useCount[n] = (useCount[n] || 0) + 1));
+TOP = Object.entries(useCount)
+  .filter(([n]) => !/^(water|ice|warm water|salt|sugar|white sugar)$/i.test(n.trim()))
+  .sort((a, b) => b[1] - a[1]).slice(0, 8).map(([n]) => n);
+$('chips').innerHTML = TOP.map(n =>
+  '<button class="chip ing" data-n="' + esc(n) + '" aria-pressed="false">' +
+  esc(n.length > 30 ? n.slice(0, 29) + '…' : n) + ' <span style="opacity:.65">' + useCount[n] + '</span></button>'
+).join('');
+}
+
+$('chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip.ing'); if (!b) return;
+  const n = b.dataset.n;
+  activeIng = activeIng === n ? null : n;
+  [...$('chips').children].forEach(c => c.setAttribute('aria-pressed', String(c.dataset.n === activeIng)));
+  render();
+});
+
+/* ---------- search ---------- */
+function hay(r) {
+  /* The Chinese name is searchable too. Staff look a drink up by whichever
+     name they have in front of them, and it was the one field left out. */
+  return (r.id + ' ' + r.n + ' ' + (r.zh || '') + ' ' + r.m + ' ' + r.i.map(x => x.n).join(' ')).toLowerCase();
+}
+
+function monthKey(m) {
+  if (!m) return 0;
+  const M = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  const p = m.split(' ');
+  return p.length === 2 ? (+p[1]) * 100 + (M[p[0]] || 0) : 0;
+}
+
+function current() {
+  const terms = $('q').value.toLowerCase().split(/\s+/).filter(Boolean);
+  let list = DATA.recipes.filter(r => terms.every(t => r._h.includes(t)));
+  if (activeIng) list = list.filter(r => r.i.some(x => x.n === activeIng));
+  if ($('favOnly').getAttribute('aria-pressed') === 'true') list = list.filter(r => FAV.has(r.id));
+  const s = $('sort').value;
+  if (s === 'name') list.sort((a, b) => a.n.localeCompare(b.n));
+  else if (s === 'ing') list.sort((a, b) => b.i.length - a.i.length || a.n.localeCompare(b.n));
+  else list.sort((a, b) => monthKey(b.m) - monthKey(a.m) || a.n.localeCompare(b.n));
+  return list;
+}
+
+function render() {
+  const list = current();
+  $('clr').hidden = !$('q').value;
+  $('count').innerHTML = '<b>' + list.length + '</b> approved recipe' + (list.length === 1 ? '' : 's') + ' found'
+    + (DATA.recipes.length !== list.length ? ' <span style="color:var(--muted)">of ' + DATA.recipes.length + '</span>' : '');
+  if (!list.length) {
+    $('grid').innerHTML = '';
+    $('empty').hidden = false;
+    $('empty').textContent = 'Nothing matches that. Try an ingredient name, or clear the filters.';
+    return;
+  }
+  $('empty').hidden = true;
+  $('grid').innerHTML = list.map(r => {
+    const ing = r.i.map(x => x.n).join(' · ');
+    return '<div class="cardwrap">' +
+      '<button class="card" data-id="' + esc(r.id) + '">' +
+        '<div class="nm">' + esc(r.n) + (r.zh ? ' <span class="zh">' + esc(r.zh) + '</span>' : '') + '</div>' +
+        '<div class="meta"><span class="rid">' + esc(r.id) + '</span>' +
+          (r.m ? '<span>· ' + esc(r.m) + '</span>' : '') +
+          '<span>· ' + r.i.length + ' ingredient' + (r.i.length === 1 ? '' : 's') + '</span></div>' +
+        '<div class="ings">' + esc(ing) + '</div>' +
+      '</button>' +
+      '<button class="favbtn" data-fav="' + esc(r.id) + '" aria-pressed="' + FAV.has(r.id) + '" ' +
+        'aria-label="Favourite">' + (FAV.has(r.id) ? '★' : '☆') + '</button>' +
+    '</div>';
+  }).join('');
+}
+
+$('grid').addEventListener('click', e => {
+  const f = e.target.closest('[data-fav]');
+  if (f) {
+    const id = f.dataset.fav;
+    FAV.has(id) ? FAV.delete(id) : FAV.add(id);
+    saveFav(); render(); return;
+  }
+  const c = e.target.closest('.card');
+  if (c) open(c.dataset.id);
+});
+
+['q', 'sort'].forEach(id => $(id).addEventListener('input', render));
+$('sort').addEventListener('change', render);
+$('clr').addEventListener('click', () => { $('q').value = ''; render(); $('q').focus(); });
+$('favOnly').addEventListener('click', function () {
+  this.setAttribute('aria-pressed', String(this.getAttribute('aria-pressed') !== 'true')); render();
+});
+$('clearAll').addEventListener('click', () => {
+  $('q').value = ''; activeIng = null;
+  $('favOnly').setAttribute('aria-pressed', 'false');
+  [...$('chips').children].forEach(c => c.setAttribute('aria-pressed', 'false'));
+  render();
+});
+
+/* ---------- detail ---------- */
+let currentId = null;
+function plain(r) {
+  return r.n + '  (' + r.id + ')\n' +
+    (r.m ? 'Approved: ' + r.m + '\n' : '') + '\nINGREDIENTS\n' +
+    r.i.map(x => '- ' + x.n + (x.q ? '   ' + x.q + (x.u ? ' ' + x.u : '') : '')).join('\n') +
+    '\n\nGolden Choice Sdn. Bhd. - approved recipe. Do not alter.';
+}
+function open(id) {
+  const r = DATA.recipes.find(x => x.id === id); if (!r) return;
+  currentId = id;
+  $('dTitle').textContent = r.n;
+  $('dId').textContent = r.id;
+  $('dBody').innerHTML =
+    /* the photo submitted with the recipe, kept in the app's Drive folder */
+    (r.p ? '<img src="' + GC_PHOTO(r.p) + '" alt="' + esc(r.n) + '"' +
+           ' style="display:block;width:auto;height:auto;max-width:100%;max-height:340px;object-fit:contain;border-radius:10px;margin:0 auto 14px">' : '') +
+    '<div>' +
+      '<h3 class="sec">Ingredients</h3>' +
+      '<table class="ing"><tbody>' +
+      r.i.map(x => '<tr><td>' + esc(x.n) + '</td><td class="q">' +
+        (x.q ? esc(x.q) + (x.u ? ' ' + esc(x.u) : '') : '—') + '</td></tr>').join('') +
+      '</tbody></table>' +
+    '</div>' +
+    '<div><h3 class="sec">Recipe information</h3><dl class="kv">' +
+      '<dt>Recipe ID</dt><dd>' + esc(r.id) + '</dd>' +
+      '<dt>Chinese name</dt><dd>' + (r.zh ? esc(r.zh) : '<span class="na">Not recorded</span>') + '</dd>' +
+      '<dt>Status</dt><dd>Approved</dd>' +
+      '<dt>Approved</dt><dd>' + (r.m ? esc(r.m) : '<span class="na">Not recorded</span>') + '</dd>' +
+      '<dt>Cost / cup</dt><dd><span class="na">Costing not available</span></dd>' +
+      '<dt>Selling price</dt><dd>' + (r.price ? 'RM ' + esc(r.price) : '<span class="na">Not available</span>') + '</dd>' +
+      '<dt>Gross margin</dt><dd><span class="na">Needs costing</span></dd>' +
+      '<dt>Method</dt><dd>' + (r.method ? esc(r.method).replace(/\n/g, '<br>') : '<span class="na">Not available</span>') + '</dd>' +
+      '<dt>Serving size</dt><dd>' + (r.serve ? esc(r.serve) + ' ML' : '<span class="na">Not available</span>') + '</dd>' +
+      '<dt>Created by</dt><dd>' + (r.by ? esc(r.by) : '<span class="na">Not recorded</span>') + '</dd>' +
+    '</dl></div>' +
+    (function(){
+      var gaps=[];
+      if(!r.price)  gaps.push('selling price');
+      if(!r.serve)  gaps.push('serving size');
+      if(!r.method) gaps.push('method');
+      if(!r.p)      gaps.push('photo');
+      return '<div class="notice"><b>Cost / cup is not available.</b> It needs the AutoCount price '+
+        'link. Nothing on this page is estimated or guessed.'+
+        (gaps.length?' This recipe also has no '+esc(gaps.join(', '))+' recorded yet — those are '+
+          'entered on the R&amp;D intake form.':'')+'</div>';
+    })() +
+    '<div class="acts">' +
+      '<button class="btn pri" id="dCopy">Copy recipe</button>' +
+      /* Straight from the card into the update form with the recipe already
+         loaded. Only a signed-in name sees it; anyone else meets sign-in. */
+      (window.GC_USER ? '<a class="btn" href="intake.html?update=' + encodeURIComponent(id) + '">Update this recipe</a>' : '') +
+      '<button class="btn" id="dPrint">Print</button>' +
+      '<button class="btn" id="dFav" aria-pressed="' + FAV.has(id) + '">' +
+        (FAV.has(id) ? '★ Favourited' : '☆ Favourite') + '</button>' +
+      '<span class="msg" id="dMsg"></span>' +
+    '</div>';
+  $('ovl').hidden = false;
+  document.body.style.overflow = 'hidden';
+  $('dClose').focus();
+
+  $('dCopy').addEventListener('click', () => {
+    const t = plain(r);
+    const done = () => { $('dMsg').textContent = 'Copied.'; setTimeout(() => $('dMsg').textContent = '', 2200); };
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(t).then(done, () => $('dMsg').textContent = 'Copy blocked by the browser.');
+    else $('dMsg').textContent = 'Copy blocked by the browser.';
+  });
+  $('dPrint').addEventListener('click', () => window.print());
+  $('dFav').addEventListener('click', function () {
+    FAV.has(id) ? FAV.delete(id) : FAV.add(id);
+    saveFav();
+    this.setAttribute('aria-pressed', String(FAV.has(id)));
+    this.textContent = FAV.has(id) ? '★ Favourited' : '☆ Favourite';
+    render();
+  });
+}
+function close() { $('ovl').hidden = true; document.body.style.overflow = ''; currentId = null; }
+$('dClose').addEventListener('click', close);
+$('ovl').addEventListener('click', e => { if (e.target === $('ovl')) close(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('ovl').hidden) close(); });
+
+/* ---------- boot ---------- */
+function start(){ DATA.recipes.forEach(r => r._h = hay(r));
+  buildChips(); render(); }
+</script>
