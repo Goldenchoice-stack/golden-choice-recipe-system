@@ -4,6 +4,11 @@
  *  No UrlFetchApp and no ScriptApp: adding either would widen the project's
  *  OAuth scopes, and Code.gs in this same project is the deployed web app the
  *  intake form depends on. Keeping that working matters more than convenience.
+ *
+ *  That is still true OF THIS FILE. It is no longer true of the project:
+ *  Web.gs uses ScriptApp and DriveApp, and Autocount.gs uses UrlFetchApp to
+ *  read the price snapshot. The menu item below is the only way into it, so
+ *  nothing the web app serves can reach the network.
  */
 
 var FIX_GID = { log: 1784376487, ver: 2145004234, trial: 863907825 };
@@ -15,6 +20,7 @@ function onOpen() {
     .addItem('Reject the recipe my cursor is on', 'rejectHere')
     .addSeparator()
     .addItem('Fix the sheet now', 'START_HERE')
+    .addItem('Update prices from AutoCount', 'updatePricesFromAutocount')
     .addToUi();
 }
 

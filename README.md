@@ -7,6 +7,7 @@ itself and the four pages read it through them, so the site updates itself.
 apps-script/Web.gs          the whole site: serves the four pages, answers their calls
 apps-script/Code.gs         writes to the sheet — submit_() and approve_() live here
 apps-script/Fixer.gs        the R&D Tools menu inside the spreadsheet
+apps-script/Autocount.gs    fills the Prices tab from the AutoCount snapshot
 apps-script/appsscript.json project settings, including the web app access rules
 
 pages/index.html      Recipe Finder  — open to everyone, approved recipes only
@@ -700,9 +701,14 @@ ever want it public.
 
 **Holding costing up** on the dashboard lists every unpriced ingredient with the number of
 recipes waiting on it, worst first. That is the order to work in — the top of that list
-buys the most recipes per row typed.
+buys the most recipes per row.
 
-Then three steps, unchanged:
+**Most of the typing is done for you.** *AutoCount — where the prices come from*, below,
+covers **R&D Tools → Update prices from AutoCount**: it builds the tab, shortlists real
+items with their cost per gram or per ML worked out, and prices every row you give a code
+to. Read that first; the three steps below are what it assumes is already true.
+
+Three steps, unchanged:
 
 ### 1. Split the merged column in the R&D Log
 
@@ -784,6 +790,11 @@ time, so those take effect immediately with no deployment.
 1. Copy `apps-script/Web.gs` over the `Web` file in the spreadsheet's Apps Script project.
    Put the six real values back where the `PASTE-…` placeholders are; they are in
    `secrets.local.md`.
+   Add `apps-script/Autocount.gs` as a new script file, and `apps-script/Fixer.gs` over the
+   existing one — that is where its menu item lives. Autocount.gs has no placeholders: its
+   two settings go in Project Settings → Script Properties (see *AutoCount — where the
+   prices come from*). Google will ask you to re-authorise, because reading the snapshot
+   needs the external-request scope.
 2. Upload `pages/index.html`, `pages/approve.html` and `pages/dashboard.html` to the
    **Recipe app** folder, replacing what is there. `intake.html` is unchanged.
 3. **Deploy → Manage deployments → pencil → Version *New version* → Deploy.** Same URL.
@@ -802,6 +813,101 @@ dashboard.html  27853 bytes  e58dca36074ed1df0e94d52e0e98f3fa
 Costing needs no new permission: `prices_()` reads a tab in the spreadsheet the project
 already has. **To undo:** *Deploy → Manage deployments* rolls back to the previous version,
 and the three pages are in git.
+
+---
+
+## AutoCount — where the prices come from
+
+`Autocount.gs` fills the `Prices` tab, so the job stops being "type 472 rows" and
+becomes "choose from a shortlist". **R&D Tools → Update prices from AutoCount.**
+
+### It is not a second connector
+
+There is exactly one path out of AutoCount and this is not another one. A
+SELECT-only login on the office Windows PC pushes a snapshot to the central sync
+server; every consumer reads that snapshot. This is one more consumer, the same
+as the Procurement System. Nothing here touches SQL Server and nothing in this
+project writes to AutoCount.
+
+It asks for `datasets=items,supplierPrices&cost=include`. That server withholds
+cost unless it is asked for, deliberately — so forgetting the parameter
+under-shares rather than over-shares.
+
+Two settings, once, in **Extensions → Apps Script → Project Settings → Script
+Properties**. They are not in this file because this repository is public:
+
+```
+GC_SYNC_URL     https://…/api/v1/procurement/latest
+GC_SYNC_TOKEN   the dashboard read token
+```
+
+Adding this file widens the project's OAuth scopes by one — external requests —
+so Google asks you to authorise the script again the first time. Nothing the web
+app serves can reach it: the menu is the only way in, and only somebody who can
+already open the spreadsheet sees the menu.
+
+### Why it does not match names automatically
+
+It was built to, and then measured against the real catalogue, where the idea
+failed honestly. Of 2,701 items, 1,464 are active and priced. Against those:
+
+| Ingredient as R&D types it | Items containing every word |
+|---|---|
+| `Milk` | 56 |
+| `Ice` | 40 |
+| `Brown Sugar` | 20 |
+| `Sugar Syrup` | 18 |
+| `Oolong Tea` | 15 |
+| `Matcha Powder` | 10 |
+
+Those ten matcha items run from **RM0.038 to RM0.305 per gram** — a RM27 tub of
+premium powder and a RM71 frappé base among them. Nothing in the text says which
+one R&D meant. A scorer would have picked one and been wrong about as often as
+right, which is the single outcome this system exists not to produce.
+
+So it does the half a machine can do:
+
+1. **Run it.** Every ingredient gets a shortlist of real items — code, purchase
+   price, pack size read off the item's own name, and the cost per ML or per
+   gram already worked out.
+2. **Put the right code in column D.** That is the only judgement in the whole
+   job, and only somebody who knows the drink can make it.
+3. **Run it again.** Every row carrying a code is priced exactly from that code,
+   and stays priced on every run after — so a supplier price rise reaches the
+   Recipe Finder by itself.
+
+It fills a row in unasked only when exactly one item in the catalogue contains
+every word of the name, its pack size is on that name, and the pack's unit is the
+unit the recipe measures in. That is rare, and meant to be.
+
+### The pack size is in the item's name, nowhere else
+
+AutoCount buys in PKT, BTL and TIN and records no contents, so
+`LAVAZZA GRAN ESPRESSO COFFEE BEAN 1KG` is the only place the sheet can learn
+that one packet is 1,000 grams. It is read from there: `1KG` → 1000 G, `0.7L` →
+700 ML, `375G (7.5G*50PCS)` → 375 G. Around 56% of priced items say their size
+this way; the rest need a person to type it.
+
+**Grams never price millilitres.** That conversion is a density and depends on
+what the ingredient is, so a 700 G tub of cheese foam will not price a line
+poured in ML. The row says so rather than converting.
+
+### What it will not do
+
+- **It never overwrites you.** Put anything but `AUTOCOUNT` in the Source column
+  and that row is never touched again — price, pack size and all.
+- **It never drops your work.** An ingredient no recipe uses any more keeps its
+  row at the bottom, with a note saying why, rather than vanishing on a rerun.
+- **It writes nothing when it cannot read.** Missing settings, a refused token
+  or a snapshot without prices all stop before the tab is touched, and say
+  *Nothing was changed.*
+- **It fills no price on a guess.** Every column I entry is a real reason: too
+  many candidates, no pack size on the name, a unit that cannot be converted, or
+  nothing in AutoCount resembling it at all.
+
+Columns A–D are the contract `prices_()` reads by position. Everything from E is
+the working: recipe UOM, source, matched item, pack size read as, why not filled,
+the candidates, and when it last ran.
 
 ---
 

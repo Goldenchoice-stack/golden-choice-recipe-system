@@ -76,6 +76,7 @@ class Range {
   setValue(v) { this.sheet._set(this.row, this.col, v); return this; }
   setFontWeight() { return this; }
   setNumberFormat() { return this; }
+  setWrap() { return this; }
 }
 
 class Sheet {
@@ -114,6 +115,8 @@ class Sheet {
   }
   getRange(row, col, rows, cols) { return new Range(this, row, col, rows, cols); }
   setFrozenRows() { return this; }
+  setColumnWidth() { return this; }
+  clear() { this.values = []; return this; }
   hideSheet() { this.hidden = true; return this; }
   appendRow(v) {
     const at = this.getLastRow() + 1;
@@ -228,7 +231,27 @@ function load(fixture, opts) {
       }
     },
 
-    LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+    /* Autocount.gs reads the price snapshot over HTTPS. The harness hands it a
+       response from a local fixture instead, so a test never reaches the real
+       sync server -- and never has a token to reach it with. */
+    UrlFetchApp: {
+      fetch(url, params) {
+        const r = (opts.fetch || (() => { throw new Error('no fetch supplied to the harness'); }))(url, params);
+        return {
+          getResponseCode: () => r.code === undefined ? 200 : r.code,
+          getContentText: () => typeof r.body === 'string' ? r.body : JSON.stringify(r.body)
+        };
+      }
+    },
+
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: k => (opts.properties && opts.properties[k] !== undefined) ? opts.properties[k] : null,
+        setProperty(k, v) { (opts.properties = opts.properties || {})[k] = v; return this; }
+      })
+    },
+
+    LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => true, releaseLock() {} }) },
     ScriptApp:   { getService: () => ({ getUrl: () => opts.baseUrl || 'https://script.local/exec' }) },
     HtmlService: {
       XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' },
@@ -248,7 +271,7 @@ function load(fixture, opts) {
 
   vm.createContext(ctx);
   const dir = path.join(__dirname, '..', 'apps-script');
-  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs']) {
+  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs', 'Autocount.gs']) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     /* Two files cannot both answer doGet. The deployment renames Code.gs's to
        connectorStatus_(), and the repository copy already carries that rename

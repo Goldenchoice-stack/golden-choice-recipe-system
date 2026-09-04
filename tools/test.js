@@ -227,6 +227,199 @@ eq('and the ingredient list is still complete',
 eq('with the tab reported as absent', bare.prices_().tab, null);
 eq('and nothing priced', bare.prices_().coverage.priced, 0);
 
+/* ============================================ filling Prices from AutoCount */
+group('Reading the pack size off the item name');
+{
+  const cat = require('./catalogue.js');
+  const bare = () => load(fx.build({ withPrices: false }), {
+    now: NOW,
+    properties: { GC_SYNC_URL: 'https://sync.test/latest', GC_SYNC_TOKEN: 'read-token' },
+    fetch: (url, params) => {
+      lastFetch = { url, params };
+      return { code: 200, body: cat.build() };
+    }
+  });
+  let lastFetch = null;
+  const A = bare();
+
+  eq('kilograms become grams', A.ctx.acPackSize_('COFFEE BEAN 1KG'), { qty: 1000, unit: 'G', text: '1 KG' });
+  eq('grams stay grams', A.ctx.acPackSize_('MATCHA POWDER 200G (PREMIUM)'), { qty: 200, unit: 'G', text: '200 G' });
+  eq('litres become millilitres', A.ctx.acPackSize_('SOYA MILK 1L'), { qty: 1000, unit: 'ML', text: '1 L' });
+  eq('a decimal pack is read whole', A.ctx.acPackSize_('MONIN SYRUP 0.7L'), { qty: 700, unit: 'ML', text: '0.7 L' });
+  eq('n x size is multiplied out', A.ctx.acPackSize_('TEA BAG 375G (7.5G*50PCS)'),
+     { qty: 375, unit: 'G', text: '375 G' });
+  ok('a name with no size says so', A.ctx.acPackSize_('GULA MELAKA SYRUP') === null);
+  ok('a code that merely contains letters and digits is not a size',
+     A.ctx.acPackSize_('LAVAZZA BLUE ESPRESSO 100%') === null);
+  /* Grams to millilitres is a density, and this must never do it. */
+  ok('there is no gram-to-millilitre conversion',
+     !A.ctx.acSameUnit_('ML', 'G') && !A.ctx.acSameUnit_('G', 'ML'));
+  ok('but a recipe in ML accepts a pack read in ML', A.ctx.acSameUnit_('ML', 'ML'));
+  ok('and KG on the recipe side counts as grams', A.ctx.acSameUnit_('KG', 'G'));
+  ok('an unrecorded recipe unit matches nothing', !A.ctx.acSameUnit_('', 'G'));
+
+  group('Which items may be offered at all');
+  const cata = A.ctx.acCatalogue_(...(function () { const c = cat.build(); return [c.items, c.supplierPrices]; })());
+  const codes = cata.map(c => c.code);
+  ok('an inactive item is never offered', codes.indexOf('C010AN99') < 0);
+  ok('an item with no purchase price is never offered', codes.indexOf('S001SG05') < 0);
+  ok('an ordinary priced item is', codes.indexOf('C010AN02') >= 0);
+
+  group('Matching, and refusing to match');
+  const m = name => A.ctx.acMatch_(name, cata);
+  eq('a name only one item can mean matches it',
+     m('Gran Espresso Coffee Bean').full.map(x => x.item.code), ['110052']);
+  ok('a generic word matches many and therefore none',
+     m('Milk').full.length > 1, 'Milk matched ' + m('Milk').full.length);
+  ok('Matcha Powder is ambiguous in the real catalogue and must stay so',
+     m('Matcha Powder').full.length > 1);
+  eq('an ingredient nothing resembles finds nothing at all',
+     m('Kopi Base').full.length + m('Kopi Base').near.length, 0);
+  ok('one word in common is not a resemblance',
+     m('Kopi Base').near.every(c => c.score > 0.5));
+  ok('the shortlist prefers an item that can actually be priced',
+     m('Matcha Powder').full[0].item.pack !== null);
+  ok('two codes for the identical product are shown once',
+     A.ctx.acShortlist_(m('Matcha Powder').full, 6).indexOf('C010AN02X') < 0,
+     A.ctx.acShortlist_(m('Matcha Powder').full, 6));
+  ok('but a genuinely different product is still offered',
+     A.ctx.acShortlist_(m('Matcha Powder').full, 6).indexOf('C010AN05') >= 0);
+  ok('and shows the cost per unit worked out',
+     /RM0\.13500 per G/.test(A.ctx.acShortlist_(m('Matcha Powder').full, 6)));
+
+  group('The run');
+  const first = A.ctx.acFill_();
+  const tab = () => {
+    const sh = A.ss.getSheetByName('Prices');
+    const out = {};
+    sh.getRange(2, 1, sh.getLastRow() - 1, 11).getValues()
+      .forEach(r => { out[String(r[0])] = r; });
+    return out;
+  };
+  let rows = tab();
+  eq('it asked the sync server for both datasets and for cost',
+     /datasets=items,supplierPrices&cost=include/.test(lastFetch.url), true);
+  eq('and sent the read token as a bearer',
+     lastFetch.params.headers.Authorization, 'Bearer read-token');
+  eq('every ingredient in the log gets a row', Object.keys(rows).length, A.ctx.acIngredients_().length);
+
+  ok('a unique match with a usable pack size is priced outright',
+     rows['Coconut Milk'][1] === 8.8 && rows['Coconut Milk'][2] === 1000,
+     JSON.stringify(rows['Coconut Milk'].slice(0, 4)));
+  eq('and is stamped as coming from AutoCount', rows['Coconut Milk'][5], 'AUTOCOUNT');
+  ok('a pack sold by weight never prices a line poured by volume',
+     rows['Cheese Foam'][1] === '');
+  ok('an ambiguous ingredient is NOT priced', rows['Matcha Powder'][1] === '');
+  ok('but is given a shortlist to choose from', String(rows['Matcha Powder'][9]).indexOf('C010AN02') >= 0);
+  ok('a unique match whose pack size is unknown is not priced',
+     rows['Gula Melaka Syrup'][1] === '' && rows['Gula Melaka Syrup'][3] === 'S001GM09');
+  ok('and says that is why', /does not say how much/.test(String(rows['Gula Melaka Syrup'][8])));
+  ok('a pack in grams does not price a line poured in millilitres',
+     rows['Yuzu Puree'][1] === '');
+  ok('and names the reason as a density rather than arithmetic',
+     /density/.test(String(rows['Yuzu Puree'][8])));
+  ok('an ingredient AutoCount does not stock says so',
+     /in-house/.test(String(rows['Kopi Base'][8])));
+
+  group('Choosing a code, and running it again');
+  {
+    const sh = A.ss.getSheetByName('Prices');
+    const at = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues()
+                 .findIndex(r => String(r[0]) === 'Matcha Powder') + 2;
+    sh.getRange(at, 4).setValue('C010AN02');
+  }
+  A.ctx.acFill_();
+  rows = tab();
+  eq('the chosen code is priced exactly', [rows['Matcha Powder'][1], rows['Matcha Powder'][2]], [27, 200]);
+  eq('cost per gram follows from it', rows['Matcha Powder'][1] / rows['Matcha Powder'][2], 0.135);
+  eq('and the item it resolved to is named', rows['Matcha Powder'][6], 'MATCHA POWDER 200G (PREMIUM)');
+
+  group('A person who prices a row by hand keeps it');
+  {
+    const sh = A.ss.getSheetByName('Prices');
+    const at = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues()
+                 .findIndex(r => String(r[0]) === 'Kopi Base') + 2;
+    sh.getRange(at, 2).setValue(18);
+    sh.getRange(at, 3).setValue(1000);
+    sh.getRange(at, 6).setValue('Sakura');
+  }
+  A.ctx.acFill_();
+  rows = tab();
+  eq('their price survives a rerun', [rows['Kopi Base'][1], rows['Kopi Base'][2]], [18, 1000]);
+  eq('and so does their name', rows['Kopi Base'][5], 'Sakura');
+  eq('the machine still owns the rows it filled', rows['Coconut Milk'][5], 'AUTOCOUNT');
+
+  group('An ingredient that leaves the log');
+  {
+    const sh = A.ss.getSheetByName('Prices');
+    /* A row somebody priced, for an ingredient no recipe uses any more. */
+    sh.getRange(sh.getLastRow() + 1, 1, 1, 6)
+      .setValues([['Pandan Essence', 12, 500, '', 'ML', 'Robin']]);
+    A.ctx.acFill_();
+    const kept = tab()['Pandan Essence'];
+    ok('a priced row for an ingredient no recipe uses is not thrown away', !!kept);
+    eq('with the price intact', [kept[1], kept[2], kept[5]], [12, 500, 'Robin']);
+    ok('and it says why it is still there', /No recipe in the log uses this/.test(String(kept[8])));
+  }
+
+  group('And then costing works');
+  {
+    /* The whole point, end to end: choose the codes for one drink's three
+       ingredients, run the bridge, and the Recipe Finder has a cost per cup. */
+    const sh = A.ss.getSheetByName('Prices');
+    const at = name => sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues()
+                         .findIndex(r => String(r[0]) === name) + 2;
+    sh.getRange(at('Oolong Tea'), 4).setValue('J010SP11');   /* RM14.24 / 1000 ML */
+    sh.getRange(at('Cheese Foam'), 4).setValue('N005RI09');  /* RM22.00 / 1000 ML */
+    sh.getRange(at('Sugar Syrup'), 4).setValue('S001SG09');  /* RM 9.00 / 1000 ML */
+    A.ctx.acFill_();
+
+    const table = A.ctx.priceTable_();
+    eq('the tab prices_() reads is the tab the bridge wrote',
+       table.items['matcha powder'].perUnit, 0.135);
+    /* Compared with a tolerance: 14.24/1000 is not exactly 0.01424 in binary
+       floating point, and it does not need to be — costOf_ rounds once, at the
+       end, which is what keeps the money right. */
+    ok('and the chosen codes are priced per millilitre',
+       Math.abs(table.items['oolong tea'].perUnit - 0.01424) < 1e-12,
+       table.items['oolong tea'].perUnit);
+
+    const foam = A.ctx.all_().recipes.find(r => r.id === 'RCP-0007');
+    /* 160 x 0.01424 + 40 x 0.022 + 10 x 0.009 */
+    eq('a drink whose every line is now priced has a cost per cup', foam.cost, 3.25);
+    eq('and a gross margin against its selling price', foam.margin, 76.6);
+    eq('and is no longer pending', foam.costPending, false);
+    ok('and is not flagged, because RM3.25 against RM13.90 is plausible',
+       foam.costCheck === null);
+  }
+
+  group('When it cannot run');
+  {
+    const noProps = load(fx.build({ withPrices: false }), { now: NOW, properties: {},
+      fetch: () => ({ code: 200, body: cat.build() }) });
+    let err = '';
+    try { noProps.ctx.acFill_(); } catch (e) { err = e.message; }
+    ok('missing settings stop it before anything is written', /Script Properties/.test(err), err);
+    ok('and it says nothing was changed', /Nothing was changed/.test(err));
+
+    const refused = load(fx.build({ withPrices: false }), { now: NOW,
+      properties: { GC_SYNC_URL: 'https://sync.test/latest', GC_SYNC_TOKEN: 'wrong' },
+      fetch: () => ({ code: 401, body: { error: 'Unauthorized dashboard read' } }) });
+    err = '';
+    try { refused.ctx.acFill_(); } catch (e) { err = e.message; }
+    ok('a refused read is reported, not swallowed', /401/.test(err), err);
+    ok('and changes nothing', /Nothing was changed/.test(err));
+
+    const noCost = load(fx.build({ withPrices: false }), { now: NOW,
+      properties: { GC_SYNC_URL: 'https://sync.test/latest', GC_SYNC_TOKEN: 'read-token' },
+      fetch: () => ({ code: 200, body: { items: cat.build().items } }) });
+    err = '';
+    try { noCost.ctx.acFill_(); } catch (e) { err = e.message; }
+    ok('a snapshot without prices is refused rather than half-used',
+       /carries no items or no prices/.test(err), err);
+  }
+}
+
 group('The four pages are the tested copies');
 for (const [name, want] of Object.entries(ctx.PAGE_FINGERPRINTS)) {
   const buf = fs.readFileSync(path.join(__dirname, '..', 'pages', name));
