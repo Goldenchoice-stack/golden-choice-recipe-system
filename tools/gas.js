@@ -247,7 +247,9 @@ function load(fixture, opts) {
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: k => (opts.properties && opts.properties[k] !== undefined) ? opts.properties[k] : null,
-        setProperty(k, v) { (opts.properties = opts.properties || {})[k] = v; return this; }
+        getProperties: () => Object.assign({}, opts.properties || {}),
+        setProperty(k, v) { (opts.properties = opts.properties || {})[k] = v; return this; },
+        deleteProperty(k) { if (opts.properties) delete opts.properties[k]; return this; }
       })
     },
 
@@ -271,7 +273,7 @@ function load(fixture, opts) {
 
   vm.createContext(ctx);
   const dir = path.join(__dirname, '..', 'apps-script');
-  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs', 'Autocount.gs']) {
+  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs', 'Autocount.gs', 'Secrets.gs']) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     /* Two files cannot both answer doGet. The deployment renames Code.gs's to
        connectorStatus_(), and the repository copy already carries that rename
@@ -282,18 +284,23 @@ function load(fixture, opts) {
     vm.runInContext(src, ctx, { filename: f });
   }
 
-  /* PASTE- placeholders are what is committed, on purpose. Tests need values. */
+  /* PASTE- placeholders are what is committed, on purpose. Tests need values.
+     Setting the CONSTANTS after load is a project that has not been migrated:
+     real values in the file, nothing in Script Properties. Passing the same
+     values through opts.properties instead is a project that has. Both have to
+     behave identically, which is the whole point of the migration. */
   if (opts.secrets !== false) {
     ctx.AUTH_SALT = 'test-salt';
     ctx.AUTH_SECRET = 'test-signing-key';
     ctx.APP_FOLDER = 'test-folder';
     ctx.SECRET = 'test-connector-secret';
     const sha = p => crypto.createHash('sha256').update(p + 'test-salt').digest('hex');
-    ctx.USERS = {
+    ctx.USER_SHAPE = {
       manager: { role: 'manager', pic: '',       sha: sha('manager-pw') },
       sakura:  { role: 'bi',      pic: 'Sakura', sha: sha('sakura-pw') },
       robin:   { role: 'bi',      pic: 'Robin',  sha: sha('robin-pw') }
     };
+    ctx.USERS = JSON.parse(JSON.stringify(ctx.USER_SHAPE));
   }
 
   return { ctx, ss, drive };

@@ -420,6 +420,90 @@ group('Reading the pack size off the item name');
   }
 }
 
+group('Moving the secrets into Script Properties');
+{
+  const bag = {};
+  /* A live project: real values in the file, nothing in Script Properties. */
+  const before = load(fx.build(), { now: NOW, properties: bag });
+  const tokenBefore = before.ctx.signIn('manager', 'manager-pw').token;
+  ok('it works before the migration', before.ctx.signIn('manager', 'manager-pw').ok);
+
+  const report = before.ctx.moveSecretsToProperties();
+  eq('all six settings are written',
+     Object.keys(bag).sort(),
+     ['GC_APP_FOLDER', 'GC_AUTH_SALT', 'GC_AUTH_SECRET',
+      'GC_SHA_MANAGER', 'GC_SHA_ROBIN', 'GC_SHA_SAKURA']);
+  ok('and it says so', /All 6 settings are in Script Properties/.test(report));
+  /* A report that printed a secret would defeat the whole exercise. */
+  ok('no secret value appears in the report',
+     Object.keys(bag).every(k => report.indexOf(bag[k]) < 0), report);
+  ok('only a four-character fingerprint of each', /\(\w{4}\)/.test(report));
+
+  /* Now the file is the public one — placeholders — and the properties are set.
+     That is exactly what pasting Web.gs whole produces. */
+  const after = load(fx.build(), { now: NOW, secrets: false, properties: bag });
+  ok('the salt resolves from the property', !/^PASTE-/.test(after.ctx.AUTH_SALT));
+  ok('the Drive folder resolves', !/^PASTE-/.test(after.ctx.APP_FOLDER));
+  ok('every name still signs in', ['manager', 'sakura', 'robin']
+     .every(n => after.ctx.signIn(n, n + '-pw').ok));
+  ok('a wrong password is still refused', !after.ctx.signIn('manager', 'nope').ok);
+  eq('roles survive', after.ctx.signIn('sakura', 'sakura-pw').role, 'bi');
+
+  /* The signing key is carried across unchanged, so the migration does not sign
+     anybody out — which is the difference between a migration and an outage. */
+  eq('a session opened before the move is still valid after it',
+     after.ctx.readToken_(tokenBefore).role, 'manager');
+
+  ok('and the whole site still reads', after.ctx.all_().count === 12);
+  ok('preflight is happy with a migrated project', /READY to deploy/.test(after.ctx.preflight()));
+
+  group('Running the migration on the wrong copy');
+  {
+    /* The accident that matters: somebody runs it on a fresh public checkout.
+       It must refuse, not overwrite six working settings with placeholders. */
+    const keep = Object.assign({}, bag);
+    const fresh = load(fx.build(), { now: NOW, secrets: false, properties: keep });
+    /* Blank the properties this run would read from, leaving only placeholders. */
+    const empty = {};
+    const naked = load(fx.build(), { now: NOW, secrets: false, properties: empty });
+    const out = naked.ctx.moveSecretsToProperties();
+    eq('nothing is written from a file that has only placeholders',
+       Object.keys(empty).length, 0);
+    ok('and it says which settings it refused', /NOT WRITTEN/.test(out));
+    ok('and that nothing was broken', /nothing was broken/.test(out));
+
+    /* Same again on a project that HAS been migrated. There is nothing to
+       refuse here: the fallback design means the constants resolve from the
+       properties, so it reads back exactly what is already stored. That is why
+       a fresh checkout cannot damage a live project either way. */
+    const out2 = fresh.ctx.moveSecretsToProperties();
+    eq('existing settings are left exactly as they were', keep, bag);
+    ok('and it reports them as already correct rather than rewriting them',
+       /ALREADY CORRECT/.test(out2) && !/WROTE/.test(out2), out2);
+    ok('the project still signs people in', fresh.ctx.signIn('robin', 'robin-pw').ok);
+  }
+
+  group('Running it twice');
+  {
+    const twice = load(fx.build(), { now: NOW, properties: {} });
+    twice.ctx.moveSecretsToProperties();
+    const second = twice.ctx.moveSecretsToProperties();
+    ok('the second run changes nothing', /ALREADY CORRECT/.test(second));
+    ok('and writes nothing', !/WROTE/.test(second), second);
+  }
+
+  group('checkSecrets, before and after the paste');
+  {
+    const set = load(fx.build(), { now: NOW, secrets: false, properties: bag });
+    ok('a migrated project reports all six present',
+       /All six settings are present/.test(set.ctx.checkSecrets()));
+    const none = load(fx.build(), { now: NOW, secrets: false, properties: {} });
+    const r = none.ctx.checkSecrets();
+    ok('an unmigrated one names what is missing', /MISSING  GC_AUTH_SALT/.test(r));
+    ok('and counts them', /6 setting\(s\) missing/.test(r));
+  }
+}
+
 group('The preflight check, which is what stands between a paste and a broken site');
 {
   /* secrets:false leaves the PASTE- placeholders exactly as committed. */

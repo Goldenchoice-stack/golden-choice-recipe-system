@@ -24,26 +24,69 @@
  * -------------------------------------------------------------------------
  */
 
-/* The three accounts, carried over unchanged: same names, same passwords, same
-   salted hashes the old site checked against. 'pic' is the R&D PIC that name
-   files work under, so the intake form opens on it.
+/* ---------------------------------------------------------------- secrets
+ *
+ * NOTHING SECRET IS IN THIS FILE. The salt, the signing key, the Drive folder
+ * id and the three password hashes are read from Script Properties, which is
+ * what lets this file be pasted whole out of a public repository without a
+ * placeholder ever reaching production — the failure that takes the site down
+ * silently, because a missing folder id throws on every page load and a changed
+ * salt signs everybody out at once.
+ *
+ * The PASTE-… values below are a FALLBACK, used only where the matching
+ * property is unset. A project that has not been migrated yet still has its
+ * real values here and goes on working untouched; run moveSecretsToProperties()
+ * from Secrets.gs and it reads them out of this file into Script Properties for
+ * you, so no secret is ever typed, transcribed or seen.
+ *
+ *   GC_AUTH_SALT     GC_AUTH_SECRET   GC_APP_FOLDER
+ *   GC_SHA_MANAGER   GC_SHA_SAKURA    GC_SHA_ROBIN
+ */
 
-   To change a password, hash the new one the same way and paste the result in:
-     node -e "console.log(require('crypto').createHash('sha256').update('NEWPASS'+'PASTE-THE-PASSWORD-SALT-HERE').digest('hex'))" */
-var AUTH_SALT = 'PASTE-THE-PASSWORD-SALT-HERE';
-var USERS = {
+/* Fetched once per execution rather than six times. */
+var SECRETS_ = (function () {
+  try { return PropertiesService.getScriptProperties().getProperties() || {}; }
+  catch (e) { return {}; }
+})();
+function prop_(key, fallback) {
+  var v = SECRETS_[key];
+  return (v === undefined || v === null || v === '') ? fallback : v;
+}
+
+var AUTH_SALT = prop_('GC_AUTH_SALT', 'PASTE-THE-PASSWORD-SALT-HERE');
+
+/* Signs the session token. Changing it ends every session at once, which is the
+   point of having it separate from the passwords. */
+var AUTH_SECRET = prop_('GC_AUTH_SECRET', 'PASTE-THE-TOKEN-SIGNING-KEY-HERE');
+
+/* The Drive folder holding the four page files and the drink photos. The
+   script runs as you, so nothing here needs sharing with anybody. */
+var APP_FOLDER = prop_('GC_APP_FOLDER', 'PASTE-THE-DRIVE-FOLDER-ID-HERE');
+
+/* The three accounts: same names, same passwords, same salted hashes the site
+   has always checked against. 'pic' is the R&D PIC that name files work under,
+   so the intake form opens on it. Only the hash is secret, so only the hash
+   moves out; a fourth person is a fourth line here plus a GC_SHA_<NAME>
+   property.
+
+   To change a password, hash the new one the same way and put the result in
+   that name's property:
+     node -e "console.log(require('crypto').createHash('sha256').update('NEWPASS'+'THE-SALT').digest('hex'))" */
+var USER_SHAPE = {
   manager: { role: 'manager', pic: '',       sha: 'PASTE-SHA256-OF-SALT-PLUS-MANAGER-PASSWORD' },
   sakura:  { role: 'bi',      pic: 'Sakura', sha: 'PASTE-SHA256-OF-SALT-PLUS-SAKURA-PASSWORD' },
   robin:   { role: 'bi',      pic: 'Robin',  sha: 'PASTE-SHA256-OF-SALT-PLUS-ROBIN-PASSWORD' }
 };
-
-/* Signs the session token. Changing this line ends every session at once,
-   which is the point of having it separate from the passwords. */
-var AUTH_SECRET = 'PASTE-THE-TOKEN-SIGNING-KEY-HERE';
-
-/* The Drive folder holding the four page files and the drink photos. The
-   script runs as you, so nothing here needs sharing with anybody. */
-var APP_FOLDER = 'PASTE-THE-DRIVE-FOLDER-ID-HERE';
+function shaProp_(name) { return 'GC_SHA_' + String(name).toUpperCase(); }
+var USERS = (function () {
+  var out = {};
+  for (var n in USER_SHAPE) {
+    if (!USER_SHAPE.hasOwnProperty(n)) continue;
+    out[n] = { role: USER_SHAPE[n].role, pic: USER_SHAPE[n].pic,
+               sha: prop_(shaProp_(n), USER_SHAPE[n].sha) };
+  }
+  return out;
+})();
 
 var GID = { log: 1784376487, ver: 2145004234, trial: 863907825 };
 var QUEUE_TAB = 'SUBMISSIONS';

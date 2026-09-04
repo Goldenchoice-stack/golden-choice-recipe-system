@@ -8,6 +8,7 @@ apps-script/Web.gs          the whole site: serves the four pages, answers their
 apps-script/Code.gs         writes to the sheet — submit_() and approve_() live here
 apps-script/Fixer.gs        the R&D Tools menu inside the spreadsheet
 apps-script/Autocount.gs    fills the Prices tab from the AutoCount snapshot
+apps-script/Secrets.gs      moves the six secrets into Script Properties, once
 apps-script/appsscript.json project settings, including the web app access rules
 
 pages/index.html      Recipe Finder  — open to everyone, approved recipes only
@@ -23,11 +24,14 @@ project bound to the recipe spreadsheet; this repository is the readable copy of
 them. The four pages are kept as files in a Drive folder and read at request
 time, which is why a page can be changed without redeploying anything.
 
-**Every secret in `apps-script/` has been replaced by a `PASTE-…` placeholder,**
-because this repository is public. The real values — the deployment URL, the
-three passwords, the password salt, the token-signing key, the connector secret
-and the Drive folder ID — are in `secrets.local.md`, which is deliberately not
-committed. Nothing here will run until those are filled in.
+**No secret is in `apps-script/` at all.** The salt, the token-signing key, the
+Drive folder id and the three password hashes are read from **Script
+Properties**; the `PASTE-…` values in `Web.gs` are only a fallback for a project
+that has not been migrated yet, and are never consulted once the properties are
+set. So every file here can be pasted whole, and no placeholder can reach
+production. `apps-script/Secrets.gs` does the one-time move for you, reading the
+values out of your live project rather than asking you to type them —
+`secrets.local.md` never has to be opened again.
 
 **Reading this for the AutoCount work?** Start at *Costing — built, and waiting on
 the price list*, near the end. It is the only place the two systems need to meet,
@@ -787,33 +791,48 @@ up as **check units** rather than as a plausible-looking wrong number.
 replacing in the **Recipe app** Drive folder — but pages are read from Drive at request
 time, so those take effect immediately with no deployment.
 
-1. **`Web.gs` — do not paste the whole file.** Every secret in this project sits above the
-   line `var GID = { log: …`, and nothing below it is sensitive. So in the editor:
+**Do the migration first, and no secret is ever typed.** The salt, the signing key, the
+Drive folder id and the three password hashes used to be constants in `Web.gs`, which is
+why deploying meant putting six real values back by hand out of `secrets.local.md` — the
+one step that fails silently and badly. They now live in Script Properties, so every file
+here can be pasted whole.
 
-   > Keep your existing `Web.gs` down to and including the `var APP_FOLDER = …` line.
-   > Select from `var GID = { log: …` to the end of the file, delete it, and paste
-   > everything from that same line to the end of this repository's `apps-script/Web.gs`.
+1. **`apps-script/Secrets.gs` — a new script file.** **+ → Script**, name it `Secrets`,
+   paste it whole. It touches nothing else.
 
-   Done that way the salt, the signing key, the folder id and the three password hashes are
-   never touched, never retyped and never seen — which is the only way to be sure they are
-   still right. `secrets.local.md` stays shut.
+2. **Choose `moveSecretsToProperties` and press Run.** It reads the values already sitting
+   in your current `Web.gs` — Apps Script shares globals across files, so they are simply
+   there to be read — and writes them into Script Properties. Nothing is typed, nothing is
+   transcribed, and the report shows a four-character fingerprint of each rather than the
+   value. `secrets.local.md` stays shut. It should end:
 
-2. `apps-script/Autocount.gs` is a **new** script file — **+ → Script**, name it `Autocount`,
-   paste it whole. It has no placeholders. Its two settings go in Project Settings →
-   Script Properties (see *AutoCount — where the prices come from*). Google will ask you to
-   re-authorise, because reading the snapshot needs the external-request scope.
+   > All 6 settings are in Script Properties. You can now paste the new Web.gs whole.
 
-3. `apps-script/Fixer.gs` over the existing one — that is where the new menu item lives.
-   It has no secrets, so paste it whole.
-4. Upload `pages/index.html`, `pages/approve.html` and `pages/dashboard.html` to the
+3. **`apps-script/Web.gs` over the existing one — the whole file.** Its `PASTE-…` values
+   are only a fallback and are never consulted now the properties are set. Nothing to
+   fill in.
+
+4. `apps-script/Autocount.gs` is a **new** script file — **+ → Script**, name it `Autocount`,
+   paste it whole. Its two settings go in the same Script Properties (see *AutoCount —
+   where the prices come from*). Google will ask you to re-authorise, because reading the
+   snapshot needs the external-request scope.
+
+5. `apps-script/Fixer.gs` over the existing one — that is where the new menu item lives.
+6. Upload `pages/index.html`, `pages/approve.html` and `pages/dashboard.html` to the
    **Recipe app** folder, replacing what is there. `intake.html` is unchanged.
-5. **Run `preflight`** in the editor. It must say **READY to deploy** — see below.
-6. **Deploy → Manage deployments → pencil → Version *New version* → Deploy.** Same URL.
+7. **Run `preflight`** in the editor. It must say **READY to deploy** — see below.
+8. **Deploy → Manage deployments → pencil → Version *New version* → Deploy.** Same URL.
    Type the description back in; it shows the old value as grey placeholder text, not as
    a value, and leaving it alone renames the deployment to *Untitled*.
-7. Open the site and put one throwaway recipe through **intake → approvals**. That is the
+9. Open the site and put one throwaway recipe through **intake → approvals**. That is the
    one path this repository has never been able to prove, because `submit_()` and
    `approve_()` write to the sheet.
+
+**Nobody is signed out by this.** The signing key is carried across unchanged, so a session
+opened before the migration is still valid after it — checked in `tools/test.js`.
+
+**To roll back at any point:** *Deploy → Manage deployments* → an earlier version. Old code
+reads its own constants and ignores the properties entirely.
 
 ### Run `preflight` before you deploy, not after
 
