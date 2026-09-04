@@ -24,10 +24,44 @@
 var FREE_NAMES = [
   'water', 'hot water', 'warm water', 'cold water', 'iced water', 'ice water',
   'plain water', 'tap water', 'filtered water', 'drinking water', 'boiled water',
-  'ice', 'ice cube', 'ice cubes', 'cubed ice', 'crushed ice'
+  'ice', 'ice cube', 'ice cubes', 'cubed ice', 'crushed ice',
+
+  /* Two the first run refused and reported, added on the owner's decision
+     5 Sep 2026. Both are plain water and plain ice with a working note stuck to
+     the name — a temperature, and a quantity split — rather than a different
+     ingredient. They needed a person because a rule cannot tell a note from a
+     product name, which is the same reason "Water Chestnut Popping Boba" is
+     still not on this list.
+
+     Both spellings of the ice one are here because the space after the plus is
+     the sort of thing that changes when somebody retypes a cell, and being
+     wrong about it would silently leave the row unpriced. */
+  'water 55c', 'ice (280+ 100)', 'ice (280+100)'
 ];
 
 var FREE_SOURCE = 'Owner (free)';
+
+/**
+ * A name that is a free word followed by NOTHING BUT A MEASUREMENT is the same
+ * free thing with a note written after it: "Water 55c", "Ice (280+ 100)".
+ * A name that carries another WORD is a different product, however it starts —
+ * "Water Chestnut Popping Boba 900G" and "Ice Cream" both begin with a free
+ * word and neither is free.
+ *
+ * So: strip the numbers and marks, then strip the unit words, and require that
+ * nothing alphabetic survives. Numbers go first, because "55c" has no word
+ * boundary between the 5 and the c and the unit would not match otherwise.
+ */
+function freeAnnotated_(norm) {
+  var m = /^(water|ice)\b([\s\S]*)$/.exec(norm);
+  if (!m || !m[2].replace(/\s+/g, '')) return false;   /* plain name: the list has it */
+  var rest = m[2]
+    .replace(/[0-9+\-.,;:()\[\]\/°%*x]/g, ' ')
+    .replace(/\b(cc|ml|l|g|kg|c|deg|degrees?|pc|pcs)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return rest === '';
+}
 
 function priceFreeIngredients() {
   var sh = SpreadsheetApp.getActive().getSheetByName(PRICES_TAB);
@@ -54,7 +88,7 @@ function priceFreeIngredients() {
 
   var wide = Math.max(sh.getLastColumn(), AC_HEAD.length);
   var vals = sh.getRange(2, 1, last - 1, wide).getValues();
-  var filled = [], already = [], skipped = [], unblocked = 0;
+  var filled = [], noted = [], already = [], skipped = [], unblocked = 0;
 
   /* "water" or "ice" as a whole word, for the report only. */
   var WORD = /(^|[^a-z])(water|ice)([^a-z]|$)/;
@@ -65,7 +99,8 @@ function priceFreeIngredients() {
     var norm = String(name).toLowerCase().replace(/\s+/g, ' ').trim();
     var n = waits[key_(name)] || 0;
 
-    if (free[norm]) {
+    var byName = !!free[norm], byNote = !byName && freeAnnotated_(norm);
+    if (byName || byNote) {
       if (vals[i][1] !== '' && vals[i][1] !== null) {
         already.push('  ' + name + '  already ' + vals[i][1] + ' / ' + vals[i][2]);
         continue;
@@ -74,7 +109,7 @@ function priceFreeIngredients() {
       sh.getRange(i + 2, 3).setValue(1);
       sh.getRange(i + 2, AC_SOURCE_COL).setValue(FREE_SOURCE);
       sh.getRange(i + 2, 9).setValue('Free. 0 over 1 means free; blank would mean unpriced.');
-      filled.push('  ' + name + '  (' + n + ' recipes)');
+      (byName ? filled : noted).push('  ' + name + '  (' + n + ' recipes)');
       unblocked += n;
       continue;
     }
@@ -85,11 +120,13 @@ function priceFreeIngredients() {
   var msg = 'FREE INGREDIENTS PRICED\n\n' +
     (filled.length ? 'SET TO 0 PER 1 UNIT\n' + filled.join('\n') + '\n\n'
                    : 'Nothing matched a free name.\n\n') +
+    (noted.length ? 'ALSO SET TO 0 — a free word with nothing but a measurement after it\n' +
+                    noted.join('\n') + '\n\n' : '') +
     (already.length ? 'ALREADY PRICED, LEFT ALONE\n' + already.join('\n') + '\n\n' : '') +
     'NOT TOUCHED — has "water" or "ice" in the name but is a purchased product,\n' +
     'so a person has to price it:\n' +
     (skipped.length ? skipped.join('\n') : '  none') + '\n\n' +
-    filled.length + ' ingredient(s) priced, between them used by ' + unblocked +
+    (filled.length + noted.length) + ' ingredient(s) priced, between them used by ' + unblocked +
     ' recipe-slots.\n' +
     'That does not cost a drink on its own — a recipe still needs every one of its\n' +
     'lines priced — but it removes the commonest reason one cannot be.';
