@@ -787,19 +787,34 @@ up as **check units** rather than as a plausible-looking wrong number.
 replacing in the **Recipe app** Drive folder — but pages are read from Drive at request
 time, so those take effect immediately with no deployment.
 
-1. Copy `apps-script/Web.gs` over the `Web` file in the spreadsheet's Apps Script project.
-   Put the six real values back where the `PASTE-…` placeholders are; they are in
-   `secrets.local.md`.
-   Add `apps-script/Autocount.gs` as a new script file, and `apps-script/Fixer.gs` over the
-   existing one — that is where its menu item lives. Autocount.gs has no placeholders: its
-   two settings go in Project Settings → Script Properties (see *AutoCount — where the
-   prices come from*). Google will ask you to re-authorise, because reading the snapshot
-   needs the external-request scope.
-2. Upload `pages/index.html`, `pages/approve.html` and `pages/dashboard.html` to the
+1. **`Web.gs` — do not paste the whole file.** Every secret in this project sits above the
+   line `var GID = { log: …`, and nothing below it is sensitive. So in the editor:
+
+   > Keep your existing `Web.gs` down to and including the `var APP_FOLDER = …` line.
+   > Select from `var GID = { log: …` to the end of the file, delete it, and paste
+   > everything from that same line to the end of this repository's `apps-script/Web.gs`.
+
+   Done that way the salt, the signing key, the folder id and the three password hashes are
+   never touched, never retyped and never seen — which is the only way to be sure they are
+   still right. `secrets.local.md` stays shut.
+
+2. `apps-script/Autocount.gs` is a **new** script file — **+ → Script**, name it `Autocount`,
+   paste it whole. It has no placeholders. Its two settings go in Project Settings →
+   Script Properties (see *AutoCount — where the prices come from*). Google will ask you to
+   re-authorise, because reading the snapshot needs the external-request scope.
+
+3. `apps-script/Fixer.gs` over the existing one — that is where the new menu item lives.
+   It has no secrets, so paste it whole.
+4. Upload `pages/index.html`, `pages/approve.html` and `pages/dashboard.html` to the
    **Recipe app** folder, replacing what is there. `intake.html` is unchanged.
-3. **Deploy → Manage deployments → pencil → Version *New version* → Deploy.** Same URL.
+5. **Run `preflight`** in the editor. It must say **READY to deploy** — see below.
+6. **Deploy → Manage deployments → pencil → Version *New version* → Deploy.** Same URL.
    Type the description back in; it shows the old value as grey placeholder text, not as
    a value, and leaving it alone renames the deployment to *Untitled*.
+7. Open the site and put one throwaway recipe through **intake → approvals**. That is the
+   one path this repository has never been able to prove, because `submit_()` and
+   `approve_()` write to the sheet.
+
 ### Run `preflight` before you deploy, not after
 
 The risky part of this is not the code, it is the paste. `Web.gs` ships with seven
@@ -808,8 +823,8 @@ password hashes belong, because this repository is public. **Deploying with any 
 still in place does not fail politely:** a missing folder id throws on every page load, and
 a changed salt or signing key signs everybody out at once.
 
-So after step 1 and before step 3, in the Apps Script editor choose **preflight** and press
-**Run**. It writes nothing and deploys nothing. It reads:
+So after the files are in place and before you deploy, in the Apps Script editor choose
+**preflight** and press **Run**. It writes nothing and deploys nothing. It reads:
 
 ```
 SECRETS
