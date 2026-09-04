@@ -21,10 +21,13 @@ var LT_NAME = 'ZZ DEPLOY CHECK - SAFE TO DELETE';
    carries a data validation that accepts only Sakura or Robin. The intake form
    offers a third option, GC, so a submission filed under GC is written to the
    R&D Log and the version register and then REJECTED by the trial log. The
-   first run of this check filed under GC and proved exactly that. It files
-   under a name the sheet accepts, so that what it tests is the deployment
-   rather than that pre-existing mismatch. */
-var LT_PIC = 'Sakura';
+   first run of this check filed under GC and proved exactly that.
+
+   picFix() in PicFix.gs widened the rule to Sakura, Robin, GC on 5 Sep 2026.
+   This files under GC on purpose: it is the case that used to half-write, so
+   it is the one worth running again. If it ever fails here, the validation has
+   been narrowed back. */
+var LT_PIC = 'GC';
 
 function lt_rows_(name) {
   var sh = SpreadsheetApp.getActive().getSheetByName(name);
