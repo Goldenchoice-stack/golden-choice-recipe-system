@@ -641,14 +641,28 @@ than by position.
 
 Headers in row 1, in this order:
 
-| A | B | C | D | E | F |
-|---|---|---|---|---|---|
-| Ingredient | AutoCount Code | Pack Cost (RM) | Units Per Pack | UOM | Non-Cost |
+| A | B | C | D |
+|---|---|---|---|
+| Ingredient | Pack Cost (RM) | Units Per Pack | AutoCount Item Code |
+
+**This order is not cosmetic.** `prices_()` in `Web.gs` reads columns A to D by
+position, so the four headings have to sit in exactly these four columns.
 
 - **Ingredient** — must match the spelling in the R&D Log (case does not matter).
+  That match is the whole integration: the R&D Log holds free text a person typed,
+  and AutoCount holds item codes, so anything spelled differently simply will not
+  price. See *Other things worth cleaning in the sheet* for how bad that is today.
 - **Pack Cost (RM)** — what you pay for one purchased pack.
 - **Units Per Pack** — how many UOM in that pack. A 1 L syrup used in ML is `1000`.
-- **Non-Cost** — `Y` for water and ice, so they read *free* rather than *pending*.
+- **AutoCount Item Code** — carried through to the pages, not used in the arithmetic.
+  This is the column that lets AutoCount keep the prices up to date later.
+
+Cost per unit is `Pack Cost ÷ Units Per Pack`, and a line costs that times the
+quantity in the recipe. Water and ice want `0` and `1` so they read as free
+rather than as pending. Anything left blank stays *pending* — the system never
+guesses.
+
+Keep UOM or any other column you like in E onward; nothing reads past D.
 
 Seed column A with every ingredient in use:
 
@@ -659,15 +673,22 @@ Seed column A with every ingredient in use:
 Then **Copy → Paste special → Values only** over itself so you can type prices beside
 fixed rows.
 
-### 3. Point the pages at it
+### 3. Nothing to point at — but know what lights up
 
-Open the Prices tab, copy the `gid=` number from the address bar into `public/sheet.js`:
+`prices_()` finds the tab by its name, so there is no ID to copy and nothing to
+redeploy. Name it `Prices`, fill it in, reload.
 
-```js
-prices: 123456789   // was null
-```
+What changes the moment it exists:
 
-That is the only change. There is no exporter to re-run.
+- **R&D Intake** prices every line as it is typed and stamps a cost per serving
+  onto the submission.
+- **Approvals** shows that cost per serving on the card being approved.
+- **Recipe Finder** does **not**. Its *Cost / cup* and *Gross margin* rows are
+  fixed text in `pages/index.html`, left that way deliberately while there was
+  nothing to show. Showing them is a small edit to that page plus a read of
+  `prices.json` — a job of an hour, not a project, and it needs no redeployment
+  because the pages are read from Drive at request time.
+- **Dashboard** does not read prices at all.
 
 ---
 
