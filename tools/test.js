@@ -457,6 +457,30 @@ group('Moving the secrets into Script Properties');
   ok('and the whole site still reads', after.ctx.all_().count === 12);
   ok('preflight is happy with a migrated project', /READY to deploy/.test(after.ctx.preflight()));
 
+  group('Secrets.gs against the OLD Web.gs, which is where it actually runs');
+  {
+    /* It is pasted into a project whose Web.gs is still the previous version:
+       USER_SHAPE and shaProp_ do not exist there. A bare reference to either
+       would be a ReferenceError and the migration would die on line one. */
+    const old = load(fx.build(), { now: NOW, properties: {} });
+    delete old.ctx.USER_SHAPE;
+    delete old.ctx.shaProp_;
+    let err = '', map = null;
+    try { map = old.ctx.secretMap_(); } catch (e) { err = e.message; }
+    ok('secretMap_ survives a project that has neither', !err, err);
+    eq('and still names all six settings', map && map.map(m => m.key).sort(),
+       ['GC_APP_FOLDER', 'GC_AUTH_SALT', 'GC_AUTH_SECRET',
+        'GC_SHA_MANAGER', 'GC_SHA_ROBIN', 'GC_SHA_SAKURA']);
+    const bag2 = {};
+    const old2 = load(fx.build(), { now: NOW, properties: bag2 });
+    delete old2.ctx.USER_SHAPE;
+    delete old2.ctx.shaProp_;
+    err = '';
+    try { old2.ctx.moveSecretsToProperties(); } catch (e) { err = e.message; }
+    ok('and the whole migration runs there', !err, err);
+    eq('writing the same six settings', Object.keys(bag2).length, 6);
+  }
+
   group('Running the migration on the wrong copy');
   {
     /* The accident that matters: somebody runs it on a fresh public checkout.
@@ -545,6 +569,51 @@ group('The preflight check, which is what stands between a paste and a broken si
   const noPrices = load(fx.build({ withPrices: false }), { now: NOW, properties: {} }).ctx.preflight();
   ok('having no price list yet does not block the deploy', /READY to deploy/.test(noPrices));
   ok('but is said out loud', /no Prices tab yet/.test(noPrices));
+}
+
+group('Replacing the pages from the repository');
+{
+  const fsx = require('fs');
+  const real = {};
+  for (const n of ['index.html', 'intake.html', 'approve.html', 'dashboard.html'])
+    real[n] = fsx.readFileSync(path.join(__dirname, '..', 'pages', n), 'utf8');
+  const serve = body => ({ code: 200, body });
+  const boot2 = fetch => load(fx.build(), { now: NOW, properties: {}, fetch });
+
+  /* Drive holding an OLD copy: the state a deploy actually starts from. */
+  {
+    const A = boot2(url => serve(real[url.split('/').pop()]));
+    A.folder._written['index.html'] = '<title>the previous version</title>';
+    const out = A.ctx.updatePagesFromRepository();
+    ok('a stale page is replaced', /replaced index\.html/.test(out), out);
+    ok('and the three that already match are left alone', /1 replaced, 3 already correct/.test(out));
+    eq('what is now in Drive is byte-for-byte the tested copy',
+       A.folder._written['index.html'], real['index.html']);
+    ok('and checkPages agrees afterwards',
+       /All four pages are exactly the copies that were tested/.test(A.ctx.checkPages()));
+  }
+
+  /* The case the fingerprints exist for. */
+  {
+    const B = boot2(() => serve(real['index.html'] + '\n<script>steal()</script>'));
+    B.folder._written['index.html'] = '<title>the previous version</title>';
+    const out = B.ctx.updatePagesFromRepository();
+    ok('a page that does not match its fingerprint is refused', /REFUSED  index\.html/.test(out), out);
+    ok('and says the live page is untouched', /live page is untouched/.test(out));
+    eq('and the live page really is untouched',
+       B.folder._written['index.html'], '<title>the previous version</title>');
+    ok('and the run reports the refusal rather than success',
+       /NOT installed/.test(out) && !/checkPages\(\) will read clean/.test(out));
+  }
+
+  /* A repository that cannot be reached must change nothing. */
+  {
+    const C = boot2(() => ({ code: 404, body: 'Not Found' }));
+    C.folder._written['approve.html'] = '<title>the previous version</title>';
+    const out = C.ctx.updatePagesFromRepository();
+    ok('an unreachable repository is reported', /FAILED   approve\.html/.test(out), out);
+    eq('and nothing is written', C.folder._written['approve.html'], '<title>the previous version</title>');
+  }
 }
 
 group('The four pages are the tested copies');

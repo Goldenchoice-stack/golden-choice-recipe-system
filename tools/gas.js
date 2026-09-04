@@ -161,11 +161,17 @@ function load(fixture, opts) {
         hasNext: () => !done,
         next: () => {
           done = true;
-          const buf = fs.readFileSync(p);
-          return { getBlob: () => ({
-            getDataAsString: () => buf.toString('utf8'),
-            getBytes: () => signed(buf)
-          }) };
+          /* A page the updater has rewritten is served from memory, so a test
+             can prove the read-back without touching the repository's files. */
+          const buf = folder._written[name] !== undefined
+            ? Buffer.from(folder._written[name], 'utf8') : fs.readFileSync(p);
+          return {
+            getBlob: () => ({
+              getDataAsString: () => buf.toString('utf8'),
+              getBytes: () => signed(buf)
+            }),
+            setContent: t => { folder._written[name] = t; }
+          };
         }
       };
     },
@@ -173,7 +179,8 @@ function load(fixture, opts) {
       const id = 'drive-file-' + (drive.created.length + 1);
       drive.created.push({ id, name: blob.getName(), type: blob.getContentType() });
       return { getId: () => id, setSharing: () => {} };
-    }
+    },
+    _written: {}
   };
 
   const fixedNow = opts.now ? new Date(opts.now) : null;
@@ -237,9 +244,15 @@ function load(fixture, opts) {
     UrlFetchApp: {
       fetch(url, params) {
         const r = (opts.fetch || (() => { throw new Error('no fetch supplied to the harness'); }))(url, params);
+        const text = typeof r.body === 'string' ? r.body : JSON.stringify(r.body);
+        const buf = Buffer.from(text, 'utf8');
         return {
           getResponseCode: () => r.code === undefined ? 200 : r.code,
-          getContentText: () => typeof r.body === 'string' ? r.body : JSON.stringify(r.body)
+          getContentText: () => text,
+          getBlob: () => ({
+            getBytes: () => signed(buf),
+            getDataAsString: () => text
+          })
         };
       }
     },
@@ -273,7 +286,7 @@ function load(fixture, opts) {
 
   vm.createContext(ctx);
   const dir = path.join(__dirname, '..', 'apps-script');
-  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs', 'Autocount.gs', 'Secrets.gs']) {
+  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs', 'Autocount.gs', 'Secrets.gs', 'Pages.gs']) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     /* Two files cannot both answer doGet. The deployment renames Code.gs's to
        connectorStatus_(), and the repository copy already carries that rename
@@ -303,7 +316,7 @@ function load(fixture, opts) {
     ctx.USERS = JSON.parse(JSON.stringify(ctx.USER_SHAPE));
   }
 
-  return { ctx, ss, drive };
+  return { ctx, ss, drive, folder };
 }
 
 module.exports = { load, Sheet, Spreadsheet, formatDate };
