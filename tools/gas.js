@@ -286,7 +286,7 @@ function load(fixture, opts) {
 
   vm.createContext(ctx);
   const dir = path.join(__dirname, '..', 'apps-script');
-  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs', 'Autocount.gs', 'Secrets.gs', 'PagesData.gs', 'Pages.gs', 'Run.gs', 'LiveTest.gs', 'PicFix.gs', 'Find.gs', 'Cleanup.gs', 'Repair.gs']) {
+  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs', 'Autocount.gs', 'Secrets.gs', 'PagesData.gs', 'Pages.gs', 'Run.gs', 'LiveTest.gs', 'PicFix.gs', 'Find.gs', 'Cleanup.gs', 'Repair.gs', 'Prices.gs']) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     /* Two files cannot both answer doGet. The deployment renames Code.gs's to
        connectorStatus_(), and the repository copy already carries that rename
