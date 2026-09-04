@@ -571,20 +571,18 @@ group('The preflight check, which is what stands between a paste and a broken si
   ok('but is said out loud', /no Prices tab yet/.test(noPrices));
 }
 
-group('Replacing the pages from the repository');
+group('Installing the pages into Drive');
 {
   const fsx = require('fs');
   const real = {};
   for (const n of ['index.html', 'intake.html', 'approve.html', 'dashboard.html'])
     real[n] = fsx.readFileSync(path.join(__dirname, '..', 'pages', n), 'utf8');
-  const serve = body => ({ code: 200, body });
-  const boot2 = fetch => load(fx.build(), { now: NOW, properties: {}, fetch });
 
   /* Drive holding an OLD copy: the state a deploy actually starts from. */
   {
-    const A = boot2(url => serve(real[url.split('/').pop()]));
+    const A = load(fx.build(), { now: NOW, properties: {} });
     A.folder._written['index.html'] = '<title>the previous version</title>';
-    const out = A.ctx.updatePagesFromRepository();
+    const out = A.ctx.installPages();
     ok('a stale page is replaced', /replaced index\.html/.test(out), out);
     ok('and the three that already match are left alone', /1 replaced, 3 already correct/.test(out));
     eq('what is now in Drive is byte-for-byte the tested copy',
@@ -593,11 +591,14 @@ group('Replacing the pages from the repository');
        /All four pages are exactly the copies that were tested/.test(A.ctx.checkPages()));
   }
 
-  /* The case the fingerprints exist for. */
+  /* The case the fingerprints exist for: the carried bytes are not the ones
+     Web.gs was tested against. Two independent places have to agree. */
   {
-    const B = boot2(() => serve(real['index.html'] + '\n<script>steal()</script>'));
+    const B = load(fx.build(), { now: NOW, properties: {} });
     B.folder._written['index.html'] = '<title>the previous version</title>';
-    const out = B.ctx.updatePagesFromRepository();
+    B.ctx.PAGE_DATA = Object.assign({}, B.ctx.PAGE_DATA,
+      { 'index.html': real['index.html'] + '\n<script>steal()</script>' });
+    const out = B.ctx.installPages();
     ok('a page that does not match its fingerprint is refused', /REFUSED  index\.html/.test(out), out);
     ok('and says the live page is untouched', /live page is untouched/.test(out));
     eq('and the live page really is untouched',
@@ -606,13 +607,21 @@ group('Replacing the pages from the repository');
        /NOT installed/.test(out) && !/checkPages\(\) will read clean/.test(out));
   }
 
-  /* A repository that cannot be reached must change nothing. */
+  /* A page missing from the carried data changes nothing. */
   {
-    const C = boot2(() => ({ code: 404, body: 'Not Found' }));
+    const C = load(fx.build(), { now: NOW, properties: {} });
     C.folder._written['approve.html'] = '<title>the previous version</title>';
-    const out = C.ctx.updatePagesFromRepository();
-    ok('an unreachable repository is reported', /FAILED   approve\.html/.test(out), out);
+    C.ctx.PAGE_DATA = Object.assign({}, C.ctx.PAGE_DATA, { 'approve.html': null });
+    const out = C.ctx.installPages();
+    ok('a page absent from PagesData is reported', /MISSING  approve\.html is not in PagesData/.test(out), out);
     eq('and nothing is written', C.folder._written['approve.html'], '<title>the previous version</title>');
+  }
+
+  /* The generated data is the pages, exactly. */
+  {
+    const D = load(fx.build(), { now: NOW, properties: {} });
+    for (const n of Object.keys(real))
+      eq(n + ' is carried byte-for-byte', D.ctx.PAGE_DATA[n], real[n]);
   }
 }
 
