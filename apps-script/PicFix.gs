@@ -168,3 +168,102 @@ function picFix() {
   Logger.log(msg);
   return msg;
 }
+
+/**
+ * Which recipes are in the shape a refused PIC leaves behind.
+ *
+ * A submission writes ingredient rows to the R&D Log, a row to RECIPE VERSIONS,
+ * and a row to R&D TRIAL LOG. The trial row is the one that carries serving
+ * size, selling price, Chinese name and photo, and it is the one the PIC
+ * validation could refuse. When it was refused, Code.gs caught the error and
+ * doSubmit_ returned early — so the queue row was never written either, and
+ * what is left is a recipe with ingredients and a version and no production
+ * detail at all.
+ *
+ * A MISSING TRIAL ROW IS NOT BY ITSELF A FAULT. Every recipe that predates the
+ * trial log is missing one too, and that is simply history — the README says so
+ * plainly. The two are told apart by date: the trial log's own earliest entry is
+ * the line, and only a version created after it should have had a row.
+ *
+ * This reads only. It reports; it repairs nothing, because repairing means
+ * inventing a serving size and a price that nobody recorded.
+ */
+function picHalfWritten() {
+  var reg = fixTab_(FIX_GID.ver, FIX_NAME.ver);
+  var tri = fixTab_(FIX_GID.trial, FIX_NAME.trial);
+  var out = [], i;
+
+  /* Every version that has a trial row, and the earliest date one carries. */
+  var T = TRIALCOLS_(), trial = {}, firstTrial = '';
+  var tr = rows_(FIX_GID.trial);
+  for (i = 0; i < tr.length; i++) {
+    var tid = cell_(tr[i], T.id);
+    if (!tid) continue;
+    trial[tid + '|' + (cell_(tr[i], T.ver) || 'V1.0')] = true;
+    var td = cell_(tr[i], T.date);
+    if (td && (!firstTrial || td < firstTrial)) firstTrial = td;
+  }
+
+  /* Who the R&D Log says filed each version. The register has a Created By too,
+     but the log is what submit_ writes from the form, so it is the better
+     witness of what was actually chosen in the dropdown. */
+  var L = LOGCOLS_(), by = {}, log = rows_(GID.log);
+  for (i = 0; i < log.length; i++) {
+    var lid = cell_(log[i], L.id);
+    if (!lid) continue;
+    var k = lid + '|' + (cell_(log[i], L.ver) || 'V1.0');
+    if (!by[k]) by[k] = cell_(log[i], L.by);
+  }
+
+  var n = reg.getLastRow();
+  var R = n > 1 ? reg.getRange(2, 1, n - 1, 11).getValues() : [];
+  var era = [], old = 0, whoCount = {}, whoOrder = [];
+
+  for (i = 0; i < R.length; i++) {
+    var id = String(R[i][0]).trim(), ver = String(R[i][1]).trim();
+    if (!id || !ver) continue;
+    if (trial[id + '|' + ver]) continue;                 /* has its trial row */
+
+    var made = String(R[i][5] || '').slice(0, 10);
+    if (firstTrial && made && made < firstTrial) { old++; continue; }  /* history */
+
+    var who = by[id + '|' + ver] || String(R[i][6] || '').trim() || '(not recorded)';
+    if (whoCount[who] === undefined) { whoCount[who] = 0; whoOrder.push(who); }
+    whoCount[who]++;
+    era.push({ id: id, ver: ver, name: String(R[i][2] || ''), made: made,
+               who: who, status: String(R[i][4] || '').trim() });
+  }
+
+  era.sort(function (a, b) { return a.made < b.made ? 1 : a.made > b.made ? -1 : 0; });
+
+  out.push('THE LINE');
+  out.push('  the earliest R&D TRIAL LOG entry is ' + (firstTrial || '(none)') +
+           ', so a version created before that');
+  out.push('  was never going to have a trial row. ' + old +
+           ' version(s) are in that group and are not counted below.');
+  out.push('');
+  out.push('VERSIONS CREATED SINCE THEN WITH NO TRIAL ROW');
+  if (!era.length) out.push('  none — every version since ' + firstTrial + ' has its trial row.');
+  else {
+    for (i = 0; i < era.length; i++)
+      out.push('  ' + era[i].made + '  ' + era[i].id + ' ' + era[i].ver +
+               '  filed by ' + era[i].who + '  [' + era[i].status + ']  ' + era[i].name);
+    out.push('');
+    out.push('  by whom:');
+    whoOrder.sort(function (a, b) { return whoCount[b] - whoCount[a]; });
+    for (i = 0; i < whoOrder.length; i++)
+      out.push('    ' + whoOrder[i] + '  x' + whoCount[whoOrder[i]]);
+  }
+
+  out.push('');
+  out.push(era.length
+    ? era.length + ' recipe version(s) have ingredients and a version row but no ' +
+      'production detail. Nothing here can be repaired automatically: the serving ' +
+      'size, selling price, Chinese name and photo were never recorded anywhere, so ' +
+      'they have to be re-entered through the intake as an update.'
+    : 'Nothing is in that shape.');
+
+  var msg = out.join('\n');
+  Logger.log(msg);
+  return msg;
+}
