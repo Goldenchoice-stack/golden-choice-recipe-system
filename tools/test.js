@@ -625,6 +625,104 @@ group('Installing the pages into Drive');
   }
 }
 
+/* ================================================= water, ice, and free rows */
+/**
+ * Free.gs zeroes a Prices row, which is a WRITE to the live price list. Getting
+ * it wrong understates every drink that uses the ingredient, silently — so the
+ * refusals matter more here than the matches.
+ */
+group('What counts as free');
+{
+  const F = load(fx.build({ withPrices: false }), { now: NOW }).ctx;
+  const yes = n => F.freeAnnotated_(n.toLowerCase());
+  ok('a temperature written after the name is a note, not a product', yes('water 55c'));
+  ok('so is one with the unit spelt out', yes('water 55 cc'));
+  ok('a quantity split written after the name is a note too', yes('ice (280+ 100)'));
+  ok('and the spacing inside it does not matter', yes('ice (280+100)'));
+  ok('a bare pack size is still the same free thing', yes('ice 500g'));
+  ok('a plain name is left to the list', !yes('water'));
+  ok('another WORD makes it a different product', !yes('ice cream'));
+  ok('however innocent that word looks', !yes('water chestnut popping boba 900g'));
+  ok('a free word in the middle does not free the name', !yes('soda water'));
+  ok('nor does one at the end', !yes('coconut water'));
+  ok('and a slash is two ingredients, not a note', !yes('soda water/ water'));
+}
+
+group('Pricing the free rows');
+{
+  const A = load(fx.build({ withPrices: false }), { now: NOW });
+  const ctxF = A.ctx;
+  const sh = A.ss.insertSheet('Prices');
+  sh.appendRow(ctxF.AC_HEAD);
+  const ROWS = [
+    ['Water',            '', '', '', '', ''],
+    ['Ice',              '', '', '', '', ''],
+    ['Water 55c',        '', '', '', '', ''],
+    ['Ice (280+ 100)',   '', '', '', '', ''],
+    ['Sparkling Water',  '', '', '', '', ''],
+    ['Ice Cream',        '', '', '', '', ''],
+    ['Coconut Water',    '', '', '', '', ''],
+    ['Kopi Base',      1.8, 100, '', '', 'AUTOCOUNT'],
+    ['Cold Water',       0,   1, '', '', ''],
+    ['Hot Water',        0,   1, '', '', 'Owner (free)'],
+    ['Iced Water',       9,   1, '', '', '']
+  ];
+  ROWS.forEach(r => sh.appendRow(r));
+
+  const msg = ctxF.priceFreeIngredients();
+  const row = name => sh.getRange(2, 1, sh.getLastRow() - 1, 11).getValues()
+                        .filter(r => String(r[0]) === name)[0];
+  /* The report is written in blocks with a blank line between them, and every
+     name appears in exactly one block. Matching across the whole message would
+     find a name in the wrong block and call it a pass. */
+  const section = (msg, head) =>
+    (msg.split(/\n\n+/).filter(b => b.indexOf(head) === 0)[0] || '');
+
+  eq('a plain free name is zeroed', row('Water').slice(1, 3), [0, 1]);
+  eq('and stamped so the AutoCount refresh will not take it back',
+     row('Water')[ctxF.AC_SOURCE_COL - 1], 'Owner (free)');
+  eq('a name carrying only a measurement is zeroed too',
+     row('Water 55c').slice(1, 3), [0, 1]);
+  eq('including the ice split the owner approved',
+     row('Ice (280+ 100)').slice(1, 3), [0, 1]);
+  ok('and the report says a rule caught it, not the list',
+     /Ice \(280\+ 100\)/.test(section(msg, 'SET TO 0 PER 1 UNIT — a free word')));
+  ok('while a plain name is reported as a list match',
+     /Water\b/.test(section(msg, 'SET TO 0 PER 1 UNIT, BY NAME')));
+
+  ok('a purchased product containing "water" is left blank',
+     row('Sparkling Water')[1] === '' && row('Coconut Water')[1] === '');
+  ok('so is one containing "ice"', row('Ice Cream')[1] === '');
+  ok('and every one of them is reported for a person', (function () {
+    const b = section(msg, 'NOT TOUCHED');
+    return /Sparkling Water/.test(b) && /Ice Cream/.test(b) && /Coconut Water/.test(b);
+  })());
+
+  eq('a real price is never overwritten', row('Kopi Base').slice(1, 3), [1.8, 100]);
+  eq('nor is a wrong-looking one on a free name', row('Iced Water').slice(1, 3), [9, 1]);
+  ok('which is reported rather than silently kept',
+     /Iced Water/.test(section(msg, 'ALREADY PRICED, LEFT ALONE')));
+
+  /* The reason this branch exists: acFill_ re-prices any row nobody owns. */
+  eq('an already-free row with no owner keeps its price',
+     row('Cold Water').slice(1, 3), [0, 1]);
+  eq('but gains the mark that protects it',
+     row('Cold Water')[ctxF.AC_SOURCE_COL - 1], 'Owner (free)');
+  ok('and the report says so', /Cold Water/.test(section(msg, 'ALREADY 0 PER 1 BUT UNPROTECTED')));
+  eq('a free row that already had an owner is untouched',
+     row('Hot Water')[ctxF.AC_SOURCE_COL - 1], 'Owner (free)');
+  ok('and is not claimed as work done',
+     !/Hot Water/.test(section(msg, 'ALREADY 0 PER 1 BUT UNPROTECTED')) &&
+     /Hot Water/.test(section(msg, 'ALREADY PRICED, LEFT ALONE')));
+
+  /* Running it twice must do nothing the second time. */
+  const again = ctxF.priceFreeIngredients();
+  ok('a second run prices nothing', /^0 ingredient\(s\) priced/m.test(again));
+  ok('and marks nothing', !/UNPROTECTED/.test(again));
+  eq('and the rows are exactly as the first run left them',
+     row('Water 55c').slice(1, 3), [0, 1]);
+}
+
 group('The four pages are the tested copies');
 for (const [name, want] of Object.entries(ctx.PAGE_FINGERPRINTS)) {
   const buf = fs.readFileSync(path.join(__dirname, '..', 'pages', name));

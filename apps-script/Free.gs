@@ -16,30 +16,28 @@
  * or "ice" as a word in it is listed in the report, unpriced, for a person.
  *
  * It never overwrites. A row that already carries a Pack Cost is left alone.
- * The rows it fills are stamped with a Source, so the AutoCount refresh treats
- * them as owned and never overwrites them either.
+ * The rows it fills are stamped with a Source, because acFill_ re-prices any row
+ * nobody owns — an unstamped 0 would quietly become a purchase price at the next
+ * AutoCount refresh. For the same reason it completes the stamp on a row that
+ * already reads exactly 0 over 1 but carries no Source. That is not a repricing:
+ * columns B and C are never touched, and the report says which rows it marked.
  */
 
 /* Exact names only, compared case- and space-insensitively. */
 var FREE_NAMES = [
   'water', 'hot water', 'warm water', 'cold water', 'iced water', 'ice water',
   'plain water', 'tap water', 'filtered water', 'drinking water', 'boiled water',
-  'ice', 'ice cube', 'ice cubes', 'cubed ice', 'crushed ice',
+  'ice', 'ice cube', 'ice cubes', 'cubed ice', 'crushed ice'
 
-  /* Two the first run refused and reported, added on the owner's decision
-     5 Sep 2026. Both are plain water and plain ice with a working note stuck to
-     the name — a temperature, and a quantity split — rather than a different
-     ingredient. They needed a person because a rule cannot tell a note from a
-     product name, which is the same reason "Water Chestnut Popping Boba" is
-     still not on this list.
-
-     Both spellings of the ice one are here because the space after the plus is
-     the sort of thing that changes when somebody retypes a cell, and being
-     wrong about it would silently leave the row unpriced. */
-  'water 55c', 'ice (280+ 100)', 'ice (280+100)'
+  /* "Water 55c" and "Ice (280+ 100)" are NOT listed here, though the owner
+     approved both on 5 Sep 2026. freeAnnotated_ already accepts them, and
+     listing them as well would report them as list matches and hide the fact
+     that a rule caught them — which is the thing worth knowing, because the
+     rule will catch the next one written that way and the list would not. */
 ];
 
 var FREE_SOURCE = 'Owner (free)';
+var FREE_NOTE = 'Free. 0 over 1 means free; blank would mean unpriced.';
 
 /**
  * A name that is a free word followed by NOTHING BUT A MEASUREMENT is the same
@@ -88,7 +86,7 @@ function priceFreeIngredients() {
 
   var wide = Math.max(sh.getLastColumn(), AC_HEAD.length);
   var vals = sh.getRange(2, 1, last - 1, wide).getValues();
-  var filled = [], noted = [], already = [], skipped = [], unblocked = 0;
+  var filled = [], noted = [], already = [], stamped = [], skipped = [], unblocked = 0;
 
   /* "water" or "ice" as a whole word, for the report only. */
   var WORD = /(^|[^a-z])(water|ice)([^a-z]|$)/;
@@ -102,13 +100,27 @@ function priceFreeIngredients() {
     var byName = !!free[norm], byNote = !byName && freeAnnotated_(norm);
     if (byName || byNote) {
       if (vals[i][1] !== '' && vals[i][1] !== null) {
-        already.push('  ' + name + '  already ' + vals[i][1] + ' / ' + vals[i][2]);
+        /* Already priced, so the number is not ours to change. But a free row
+           with a blank Source is not PROTECTED: acFill_ leaves alone only rows
+           somebody owns, so the next AutoCount refresh would re-match this one
+           and the 0 would quietly become a purchase price. Completing the mark
+           is not a repricing — columns B and C are never touched, and it only
+           happens on a row that already reads exactly 0 over 1. */
+        if (Number(vals[i][1]) === 0 && Number(vals[i][2]) === 1 &&
+            !S_(vals[i][AC_SOURCE_COL - 1])) {
+          sh.getRange(i + 2, AC_SOURCE_COL).setValue(FREE_SOURCE);
+          sh.getRange(i + 2, 9).setValue(FREE_NOTE);
+          stamped.push('  ' + name + '  0 / 1, now marked "' + FREE_SOURCE + '"');
+          continue;
+        }
+        already.push('  ' + name + '  already ' + vals[i][1] + ' / ' + vals[i][2] +
+                     '  (' + (S_(vals[i][AC_SOURCE_COL - 1]) || 'no source') + ')');
         continue;
       }
       sh.getRange(i + 2, 2).setValue(0);
       sh.getRange(i + 2, 3).setValue(1);
       sh.getRange(i + 2, AC_SOURCE_COL).setValue(FREE_SOURCE);
-      sh.getRange(i + 2, 9).setValue('Free. 0 over 1 means free; blank would mean unpriced.');
+      sh.getRange(i + 2, 9).setValue(FREE_NOTE);
       (byName ? filled : noted).push('  ' + name + '  (' + n + ' recipes)');
       unblocked += n;
       continue;
@@ -118,16 +130,19 @@ function priceFreeIngredients() {
   }
 
   var msg = 'FREE INGREDIENTS PRICED\n\n' +
-    (filled.length ? 'SET TO 0 PER 1 UNIT\n' + filled.join('\n') + '\n\n'
-                   : 'Nothing matched a free name.\n\n') +
-    (noted.length ? 'ALSO SET TO 0 — a free word with nothing but a measurement after it\n' +
+    (filled.length ? 'SET TO 0 PER 1 UNIT, BY NAME\n' + filled.join('\n') + '\n\n' : '') +
+    (noted.length ? 'SET TO 0 PER 1 UNIT — a free word with nothing but a measurement after it\n' +
                     noted.join('\n') + '\n\n' : '') +
+    (filled.length || noted.length ? '' : 'Nothing needed pricing this run.\n\n') +
+    (stamped.length ? 'ALREADY 0 PER 1 BUT UNPROTECTED — marked, price untouched\n' +
+                     stamped.join('\n') + '\n\n' : '') +
     (already.length ? 'ALREADY PRICED, LEFT ALONE\n' + already.join('\n') + '\n\n' : '') +
     'NOT TOUCHED — has "water" or "ice" in the name but is a purchased product,\n' +
     'so a person has to price it:\n' +
     (skipped.length ? skipped.join('\n') : '  none') + '\n\n' +
     (filled.length + noted.length) + ' ingredient(s) priced, between them used by ' + unblocked +
-    ' recipe-slots.\n' +
+    ' recipe-slots' + (stamped.length ? '; ' + stamped.length + ' already-free row(s) marked so the ' +
+    'AutoCount refresh leaves them alone' : '') + '.\n' +
     'That does not cost a drink on its own — a recipe still needs every one of its\n' +
     'lines priced — but it removes the commonest reason one cannot be.';
   Logger.log(msg);
