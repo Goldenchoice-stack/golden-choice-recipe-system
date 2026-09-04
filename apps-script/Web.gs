@@ -48,6 +48,10 @@ var APP_FOLDER = 'PASTE-THE-DRIVE-FOLDER-ID-HERE';
 var GID = { log: 1784376487, ver: 2145004234, trial: 863907825 };
 var QUEUE_TAB = 'SUBMISSIONS';
 
+/* The price list. Found by name, so there is no id to copy and nothing to
+   redeploy when it is created: name the tab this, fill it in, reload. */
+var PRICES_TAB = 'Prices';
+
 /* ------------------------------------------------------------------ people */
 
 function hex_(bytes) {
@@ -253,7 +257,7 @@ function api(fn, arg, token) {
   /* Only the approved feed is open. all_() carries rejected and unreviewed
      drinks and the internal notes, and prices_() carries cost — neither
      belongs to the ten people who just want to look a recipe up. */
-  if (fn === 'feed')      return feed_();
+  if (fn === 'feed')      return feed_(staff_(who));
   if (fn === 'all')       { must_(staff_(who)); return all_(); }
   if (fn === 'prices')    { must_(staff_(who)); return prices_(); }
   if (fn === 'dashboard') { must_(staff_(who)); return dashboard_(); }
@@ -388,7 +392,7 @@ function lastCopy_(rows, key) {
 }
 
 function library_() {
-  var L = LOGCOLS_(), T = TRIALCOLS_();
+  var L = LOGCOLS_(), T = TRIALCOLS_(), table = priceTable_();
   var log = rows_(GID.log);
   var trial = {}, tr = rows_(GID.trial);
   for (var i = 0; i < tr.length; i++) {
@@ -426,7 +430,9 @@ function library_() {
     var last = rr[rr.length - 1], t = trial[rid + '|' + live] || [];
     var dates = rr.map(function (r) { return cell_(r, L.date); }).filter(String);
     var raw = st(live);
-    out.push({
+    /* Costed against the version that is live, from the price list read once
+       above — so a recipe's cost is the cost of the recipe Sales can order. */
+    out.push(cost_({
       id: rid, name: cell_(last, L.name), by: cell_(last, L.by),
       status: LIVE_STATUS[raw] === undefined ? raw : LIVE_STATUS[raw],
       version: live, versionCount: vs.length, top: vs[0],
@@ -437,7 +443,7 @@ function library_() {
       method: cell_(t, T.method), video: cell_(t, T.video),
       project: cell_(t, T.project), stage: cell_(t, T.stage), notes: cell_(t, T.notes),
       month: month_(dates.length ? dates[dates.length - 1] : '')
-    });
+    }, table));
   }
   out.sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
   return out;
@@ -452,16 +458,34 @@ function today_() {
   return Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
 }
 
-/* Only an approved recipe reaches Sales. */
-function feed_() {
+/**
+ * Only an approved recipe reaches Sales.
+ *
+ * Cost and gross margin ride along only for a signed-in name. This is the one
+ * open endpoint — the Recipe Finder is deliberately reachable by anyone with
+ * the link, which is exactly why what a drink costs to make must not be in the
+ * answer it gives a stranger. The Finder draws those two rows when they are
+ * there and says where to find them when they are not.
+ */
+function feed_(withCost) {
   var lib = library_(), out = [];
   for (var i = 0; i < lib.length; i++) {
     var r = lib[i];
     if (r.status !== 'Approved') continue;
-    out.push({ id: r.id, n: r.name, zh: r.zh, m: r.month, i: r.ing, by: r.by,
-               serve: r.serve, price: r.price, method: r.method, p: r.photo });
+    var o = { id: r.id, n: r.name, zh: r.zh, m: r.month, i: r.ing, by: r.by,
+              serve: r.serve, price: r.price, method: r.method, p: r.photo };
+    if (withCost) {
+      o.cost = r.cost;
+      o.margin = r.margin;
+      o.costPending = r.costPending;
+      o.unpriced = r.unpriced;
+      o.unmeasured = r.unmeasured;
+      o.costCheck = r.costCheck;
+    }
+    out.push(o);
   }
-  return { generated: today_(), at: stamp_(), count: out.length, recipes: out };
+  return { generated: today_(), at: stamp_(), count: out.length,
+           costing: !!withCost, recipes: out };
 }
 
 function all_() {
@@ -489,32 +513,151 @@ function all_() {
     recipes: lib };
 }
 
+/* =====================================================================
+ * Costing
+ *
+ * One arithmetic, in one place, so the intake pricing a line as it is typed,
+ * the card the manager approves, the Recipe Finder and the dashboard tile can
+ * never disagree about what a drink costs.
+ *
+ *   cost per unit  =  Pack Cost (RM)  ÷  Units Per Pack
+ *   line cost      =  quantity in the recipe  ×  cost per unit
+ *   cost per cup   =  every line added up
+ *
+ * The rule that matters more than the arithmetic: a recipe with ANY line it
+ * cannot cost reports no cost at all. A partial total is a wrong number wearing
+ * a right one's clothes, and a drink that looks cheap because an ingredient was
+ * forgotten is worse than one that admits it does not know yet.
+ * =================================================================== */
+
 /**
- * Costing is not wired up: there is no price list in this spreadsheet, so every
- * ingredient reports an unknown cost rather than a wrong one — which is what
- * the intake already shows as "Needs costing". Add a tab named Prices with
- * columns ingredient / cost / units-per-pack / item code and this reads it.
+ * The price list, read once per request. Both numbers have to be usable or the
+ * row is treated as unpriced: Number('') is 0 and Number('n/a') is NaN, and
+ * either of those reaching the arithmetic would price a drink at nonsense
+ * rather than at nothing.
+ */
+function priceTable_() {
+  var sh = SpreadsheetApp.getActive().getSheetByName(PRICES_TAB);
+  var t = { exists: !!sh, at: null, items: {}, priced: 0, listed: 0 };
+  if (!sh || sh.getLastRow() < 2) return t;
+  t.at = stamp_();
+  var v = sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues();
+  for (var i = 0; i < v.length; i++) {
+    var n = S_(v[i][0]); if (!n) continue;
+    var cost = v[i][1] === '' ? null : Number(v[i][1]);
+    var per  = v[i][2] === '' ? null : Number(v[i][2]);
+    /* Units per pack divides, so zero is as unusable as blank. Pack cost may be
+       zero — that is how water and ice are told from an ingredient nobody has
+       priced yet. */
+    var ok = cost !== null && isFinite(cost) && cost >= 0 &&
+             per  !== null && isFinite(per)  && per  >  0;
+    t.listed++;
+    if (ok) t.priced++;
+    t.items[key_(n)] = { cost: ok ? cost : null, per: ok ? per : null,
+                         perUnit: ok ? cost / per : null, code: S_(v[i][3]) || null };
+  }
+  return t;
+}
+
+/* Money, and only at the very end: every line is added at full precision and
+   the total is rounded once, so 100 lines do not accumulate a rounding drift. */
+function money_(n) { return Math.round(n * 100) / 100; }
+
+/**
+ * What one serving of a recipe costs, and — when it cannot say — exactly which
+ * ingredients are in the way. The two reasons are kept apart because they have
+ * different fixes: an ingredient nobody has priced is a job for the Prices tab,
+ * and a quantity that is not a number (`HALF` a lime, `follow powder x 1`) is a
+ * job for the R&D Log.
+ */
+function costOf_(ing, table) {
+  var total = 0, unpriced = [], unmeasured = [], lines = [];
+  for (var i = 0; i < (ing || []).length; i++) {
+    var name = S_(ing[i].n);
+    if (!name) continue;
+    var e = table.items[key_(name)], q = parseFloat(ing[i].q);
+    var line = { n: name, code: e ? e.code : null, cost: null };
+    if (!e || e.perUnit === null) unpriced.push(name);
+    else if (!isFinite(q))        unmeasured.push(name);
+    else { line.cost = money_(q * e.perUnit); total += q * e.perUnit; }
+    lines.push(line);
+  }
+  var pending = unpriced.length > 0 || unmeasured.length > 0;
+  return { cost: pending ? null : money_(total), pending: pending,
+           unpriced: unpriced, unmeasured: unmeasured, lines: lines };
+}
+
+/**
+ * Gross margin on the selling price, which is the sense the trade uses:
+ * what is left of a ringgit taken over the counter. Never inferred from one
+ * number alone — no cost, no price, or a price of zero all mean no margin.
+ */
+function margin_(cost, price) {
+  var p = parseFloat(price);
+  if (cost === null || !isFinite(p) || p <= 0) return null;
+  return Math.round((p - cost) / p * 1000) / 10;
+}
+
+/**
+ * A cost at or above the selling price is almost never a drink that loses
+ * money. It is Units Per Pack not matching the UOM the recipe measures in — a
+ * 1 L syrup entered as one pack, so every ML is charged at the price of the
+ * whole litre. With 472 ingredients to price by hand out of AutoCount, that is
+ * the mistake to expect.
+ *
+ * The arithmetic is right and the input is wrong, so the figure is shown and
+ * marked rather than quietly hidden: hiding it would lose the only signal that
+ * the price list needs correcting.
+ */
+function costCheck_(cost, price, lines) {
+  var p = parseFloat(price);
+  if (cost === null || !isFinite(p) || p <= 0 || cost < p) return null;
+  /* Name the dearest line, because that is the one to look at first. */
+  var worst = null;
+  for (var i = 0; i < lines.length; i++)
+    if (lines[i].cost !== null && (!worst || lines[i].cost > worst.cost)) worst = lines[i];
+  /* The headline is the page's to write; this is only the explanation, so the
+     two do not read as the same sentence twice. */
+  return { over: true, worst: worst ? worst.n : '',
+           why: 'Units Per Pack in the price list almost certainly does not match ' +
+                'the UOM the recipe measures in.' };
+}
+
+/* Attaches cost, margin and the reasons to one recipe-shaped object. */
+function cost_(r, table) {
+  var c = costOf_(r.ing, table);
+  r.cost = c.cost;
+  r.costPending = c.pending;
+  r.unpriced = c.unpriced;
+  r.unmeasured = c.unmeasured;
+  r.margin = margin_(c.cost, r.price);
+  r.costCheck = costCheck_(c.cost, r.price, c.lines);
+  return r;
+}
+
+/**
+ * The ingredient-by-ingredient view the intake prices lines from as they are
+ * typed. Every ingredient the library uses appears, so one that has never been
+ * priced is visible as a gap rather than absent — that list is the work.
  */
 function prices_() {
-  var items = {}, lib = library_(), sh = SpreadsheetApp.getActive().getSheetByName('Prices');
-  var have = {};
-  if (sh && sh.getLastRow() > 1) {
-    var v = sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues();
-    for (var i = 0; i < v.length; i++) {
-      var n = S_(v[i][0]); if (!n) continue;
-      have[n.toLowerCase()] = { cost: v[i][1] === '' ? null : Number(v[i][1]),
-                                per:  v[i][2] === '' ? null : Number(v[i][2]),
-                                perUnit: null, code: S_(v[i][3]) || null };
-    }
-  }
+  var table = priceTable_(), lib = library_(), items = {}, used = 0, covered = 0;
   for (var r = 0; r < lib.length; r++)
     for (var j = 0; j < lib[r].ing.length; j++) {
-      var name = lib[r].ing[j].n; if (!name) continue;
-      items[name.toLowerCase()] = have[name.toLowerCase()] ||
-        { per: null, perUnit: null, code: null, cost: null };
+      var name = lib[r].ing[j].n;
+      if (!name || items[key_(name)]) continue;
+      var e = table.items[key_(name)];
+      items[key_(name)] = e || { cost: null, per: null, perUnit: null, code: null };
+      used++;
+      if (e && e.perUnit !== null) covered++;
     }
-  return { note: 'cost + code are filled from a Prices tab in this spreadsheet. per = units per purchased pack.',
-           updated: sh ? stamp_() : null, basis: null, items: items };
+  return { note: 'cost + code are filled from a ' + PRICES_TAB + ' tab in this spreadsheet. ' +
+                 'per = units per purchased pack; perUnit = cost of one UOM.',
+           updated: table.at,
+           basis: 'line cost = quantity x (Pack Cost (RM) / Units Per Pack)',
+           tab: table.exists ? PRICES_TAB : null,
+           coverage: { used: used, priced: covered, missing: used - covered },
+           items: items };
 }
 
 /* ----------------------------------------------------------- the approvals */
@@ -713,7 +856,7 @@ function sheetPending_(have) {
     meta[id + '|' + ver] = v[i];
   }
 
-  var L = LOGCOLS_(), T = TRIALCOLS_(), lib = library_(), live = {};
+  var L = LOGCOLS_(), T = TRIALCOLS_(), lib = library_(), table = priceTable_(), live = {};
   for (var j = 0; j < lib.length; j++) live[lib[j].id] = lib[j];
 
   var ing = {}, log = rows_(GID.log);
@@ -755,12 +898,20 @@ function sheetPending_(have) {
       difficulty: cell_(t2, T.diff), equipment: cell_(t2, T.equip),
       method: cell_(t2, T.method), video: cell_(t2, T.video),
       photoFile: cell_(t2, T.photo),
-      costingPending: true, updateType: 'major',
+      updateType: 'major',
       ingredients: rows2.map(function (r) {
         return { n: cell_(r, L.ing), q: num_(cell_(r, L.qty)), u: cell_(r, L.uom) };
       }),
       changes: []
     };
+    /* These never passed through the intake, so no cost was ever stamped on
+       them. Costing the rows themselves is what puts a real figure on the card
+       instead of the word "pending" every time. */
+    var c2 = costOf_(item.ingredients, table);
+    item.costPerServing = c2.cost;
+    item.costingPending = c2.pending;
+    item.unpriced = c2.unpriced;
+    item.unmeasured = c2.unmeasured;
     if (cur && item.mode === 'update') item.changes = changes_(cur, item, '');
     out.push(item);
   }
@@ -799,12 +950,31 @@ function dashboard_() {
     SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
 
   var lc = { total: lib.length, approved: 0, rejected: 0, unreviewed: 0, pendingReview: 0,
-             costingDone: 0, multiVersion: 0, costingPending: lib.length };
+             costingDone: 0, multiVersion: 0, costingPending: 0 };
+  /* Which ingredients are holding costing up, and how many recipes each one is
+     holding up — the order to work the Prices tab in, rather than a count that
+     says only that there is work. */
+  var blockers = {};
   for (var i = 0; i < lib.length; i++) {
     var k = lib[i].status.toLowerCase();
     if (lc[k] !== undefined) lc[k]++;
     if (lib[i].versionCount > 1) lc.multiVersion++;
+    if (lib[i].costPending) lc.costingPending++; else lc.costingDone++;
+    var why = lib[i].unpriced.concat(lib[i].unmeasured), seen = {};
+    for (var w = 0; w < why.length; w++) {
+      var nm = why[w];
+      if (seen[key_(nm)]) continue;              /* one recipe counts once */
+      seen[key_(nm)] = 1;
+      var b = blockers[key_(nm)] ||
+              (blockers[key_(nm)] = { name: nm, recipes: 0,
+                                      reason: lib[i].unpriced.indexOf(nm) >= 0 ? 'no price' : 'quantity is not a number' });
+      b.recipes++;
+    }
   }
+  var costing = [];
+  for (var bn in blockers) if (blockers.hasOwnProperty(bn)) costing.push(blockers[bn]);
+  costing.sort(function (a, b) { return b.recipes - a.recipes ||
+                                        (a.name < b.name ? -1 : a.name > b.name ? 1 : 0); });
 
   var todayC = { created: 0, trials: 0, approved: 0, failed: 0, revision: 0 };
   var acc = { today: { drinks: 0, trials: 0 }, week: { drinks: 0, trials: 0 },
@@ -865,7 +1035,7 @@ function dashboard_() {
   }
 
   return { at: stamp_(), today: t, library: lc, todayCounts: todayC, pics: pics,
-           accumulated: acc, status: stat,
+           costingBlockers: costing, accumulated: acc, status: stat,
            pipeline: Object.keys(stages).map(function (k) { return { stage: k, n: stages[k] }; }),
            versions: ver, overdue: overdue, pendingApproval: waiting,
            latest: latest.slice(-8).reverse(), trialRows: tr.length };
@@ -884,10 +1054,10 @@ function dashboard_() {
  * ones that were tested. It reads them, fingerprints them, and says so.
  * ==================================================================== */
 var PAGE_FINGERPRINTS = {
-  'index.html':     { size: 21658, md5: '9a6ddd57ac81fecaa3341c4e6b7cfdcc' },
+  'index.html':     { size: 24635, md5: 'f53075f00416da94071564962a6d61dd' },
   'intake.html':    { size: 38921, md5: '5f34b85b984dcda91a799e7274bf741c' },
-  'approve.html':   { size: 13204, md5: 'dfa237e39e434c5c5c4d73908066bb89' },
-  'dashboard.html': { size: 24639, md5: 'a6ff1a9cb1ecf07ec6e82f2f3b827224' }
+  'approve.html':   { size: 14426, md5: 'dc9983fccd7b7a5a4d45e1d51aa3376b' },
+  'dashboard.html': { size: 27853, md5: 'e58dca36074ed1df0e94d52e0e98f3fa' }
 };
 
 function checkPages() {

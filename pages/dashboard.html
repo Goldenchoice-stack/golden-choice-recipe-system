@@ -132,6 +132,8 @@ tr.lnk a{text-decoration:none}
 <h2 class="sec">Recipe library</h2>
 <div class="tiles" id="lib"></div>
 
+<div class="card"><h3>Holding costing up</h3><div class="body"><div id="blockers"></div></div></div>
+
 <h2 class="sec">Today</h2>
 <div class="tiles" id="today"></div>
 
@@ -208,11 +210,26 @@ function tile(lab,num,fine,state,act){
    number and the rows behind it always come from one source. */
 var ALL=null, OPEN=null, DETAIL=null, LISTSCROLL=0, BACKTO=null;
 function rstatus(r){ return String(r&&r.status!=null?r.status:'').trim(); }
+/* What each list shows in its right-hand column. Ingredients answers "how big
+   is this recipe"; the costing list is opened to find out what is in the way,
+   so it answers that instead. */
+var COUNTCOL={head:'Ingredients', cell:function(r){return (r.ing&&r.ing.length)||0;}};
 var VIEWS={
   all:{title:'All recipes', keep:function(){return true;}},
   approved:{title:'Approved recipes', keep:function(r){return rstatus(r)==='Approved';}},
   unreviewed:{title:'Unreviewed recipes', keep:function(r){var s=rstatus(r);return s===''||s==='Unreviewed';}},
-  rejected:{title:'Rejected recipes', keep:function(r){return rstatus(r)==='Rejected';}}
+  rejected:{title:'Rejected recipes', keep:function(r){return rstatus(r)==='Rejected';}},
+  costing:{title:'Recipes still waiting on a cost', keep:function(r){return !!r.costPending;},
+    col:{head:'What is in the way', wide:true, cell:function(r){
+      var out=[];
+      if(r.unpriced&&r.unpriced.length)   out.push('no price: '+r.unpriced.join(', '));
+      if(r.unmeasured&&r.unmeasured.length) out.push('quantity is not a number: '+r.unmeasured.join(', '));
+      return out.join(' · ')||'—';}}},
+  costed:{title:'Recipes with a cost per cup', keep:function(r){return !r.costPending;},
+    col:{head:'Cost / cup', cell:function(r){
+      return r.cost==null?'—':'RM '+Number(r.cost).toFixed(2)+
+        (r.margin==null?'':' · '+r.margin.toFixed(1)+'%')+
+        (r.costCheck?' · check units':'');}}}
 };
 function recipesFor(kind){
   var list=(ALL&&ALL.recipes)||[];
@@ -249,13 +266,15 @@ function renderList(kind){
   $('mtitle').className='';
   $('mtitle').textContent=VIEWS[kind].title;
   $('mcount').textContent=rows.length+(rows.length===1?' recipe':' recipes');
+  var col=VIEWS[kind].col||COUNTCOL;
+  var right=col.wide?'':' class="n" style="text-align:right"';
   $('mbody').innerHTML = rows.length
     ? '<table'+(ROWSTRETCH?' class="stretch"':'')+'><thead><tr><th>Recipe ID</th><th>Name</th><th>Status</th>'+
-      '<th class="n" style="text-align:right">Ingredients</th></tr></thead><tbody>'+
+      '<th'+right+'>'+esc(col.head)+'</th></tr></thead><tbody>'+
       rows.map(function(r){
         return '<tr class="rowr"><td class="id"><button type="button" class="rowbtn" data-rid="'+esc(r.id)+
           '" aria-label="Open '+esc(r.id)+' '+esc(r.name)+'">'+esc(r.id)+'</button></td><td>'+esc(r.name)+
-          '</td><td>'+statusCell(r)+'</td><td class="n">'+((r.ing&&r.ing.length)||0)+'</td></tr>';}).join('')+
+          '</td><td>'+statusCell(r)+'</td><td'+right+'>'+esc(col.cell(r))+'</td></tr>';}).join('')+
       '</tbody></table>'
     : '<p class="empty">Nothing to show.</p>';
 }
@@ -273,7 +292,22 @@ function renderDetail(r){
   $('mbody').innerHTML=
     '<div class="meta"><div><div class="k">Recipe ID</div><div class="v id">'+esc(r.id)+'</div></div>'+
     '<div><div class="k">Status</div><div class="v">'+statusCell(r)+'</div></div>'+
-    '<div><div class="k">Created by</div><div class="v">'+esc(r.by||'—')+'</div></div></div>'+
+    '<div><div class="k">Created by</div><div class="v">'+esc(r.by||'—')+'</div></div>'+
+    '<div><div class="k">Cost / cup</div><div class="v">'+
+      (r.cost==null?'—':'RM '+Number(r.cost).toFixed(2))+'</div></div>'+
+    '<div><div class="k">Gross margin</div><div class="v">'+
+      (r.margin==null?'—':r.margin.toFixed(1)+'%')+'</div></div></div>'+
+    /* Why there is no cost, said here rather than left as a dash — this is the
+       page the person who can fix it is already looking at. */
+    (r.costCheck
+      ? '<div class="note"><b>Costs more to make than it sells for.</b> '+esc(r.costCheck.why)+
+        (r.costCheck.worst?' The dearest line is <b>'+esc(r.costCheck.worst)+'</b>.':'')+'</div>'
+      : (r.costPending
+        ? '<div class="note">No cost yet: '+
+          [(r.unpriced&&r.unpriced.length?'no price for <b>'+esc(r.unpriced.join(', '))+'</b>':''),
+           (r.unmeasured&&r.unmeasured.length?'the quantity for <b>'+esc(r.unmeasured.join(', '))+
+             '</b> is not a number':'')].filter(Boolean).join(', and ')+'.</div>'
+        : ''))+
     '<h4>Ingredients</h4>'+
     (ing.length
       ? '<table><thead><tr><th>Ingredient</th><th class="n" style="text-align:right">Quantity</th></tr></thead><tbody>'+
@@ -365,7 +399,24 @@ function draw(d){
     tile('Pending review', L.pendingReview, L.pendingReview?'waiting on you':'nothing waiting', L.pendingReview?'warn':'', L.pendingReview>0?{href:'approve.html'}:null) +
     tile('Unreviewed', L.unreviewed, 'never assessed', '', act('unreviewed',L.unreviewed)) +
     tile('Rejected', L.rejected, '', '', act('rejected',L.rejected)) +
-    tile('Costing done', L.costingDone, L.costingPending+' still pending', L.costingDone?'good':'warn');
+    /* Both halves open now that there is something behind them: the costed
+       recipes with their margins, and the ones still waiting with the reason
+       against each. Below the tiles, the ingredients holding the most recipes
+       up — which is the order to work the price list in. */
+    tile('Costing done', L.costingDone, L.costingPending+' still pending',
+         L.costingDone?'good':'warn', act('costed',L.costingDone)) +
+    tile('Needs costing', L.costingPending, L.costingPending?'no cost per cup yet':'all costed',
+         L.costingPending?'warn':'good', act('costing',L.costingPending));
+
+  var B=d.costingBlockers||[];
+  $('blockers').innerHTML = B.length
+    ? '<table><tr><th>Ingredient</th><th>Why</th>'+
+      '<th class="n" style="text-align:right">Recipes</th></tr>'+
+      B.slice(0,12).map(function(b){
+        return '<tr><td>'+esc(b.name)+'</td><td>'+esc(b.reason)+'</td>'+
+          '<td class="n">'+b.recipes+'</td></tr>';}).join('')+'</table>'+
+      (B.length>12?'<p class="empty">'+(B.length-12)+' more.</p>':'')
+    : '<p class="empty">Every ingredient in the library has a price. Nothing is holding costing up.</p>';
 
   var T=d.todayCounts;
   $('today').innerHTML =

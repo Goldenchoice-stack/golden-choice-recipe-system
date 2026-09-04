@@ -13,6 +13,8 @@ pages/index.html      Recipe Finder  — open to everyone, approved recipes only
 pages/intake.html     R&D Intake     — new recipe and update, sign-in required
 pages/approve.html    Approvals      — manager only
 pages/dashboard.html  Dashboard      — R&D at a glance
+
+tools/                run and test all of the above on a laptop — see below
 ```
 
 **The four `.gs` files are the deployed source.** They live in the Apps Script
@@ -26,12 +28,45 @@ three passwords, the password salt, the token-signing key, the connector secret
 and the Drive folder ID — are in `secrets.local.md`, which is deliberately not
 committed. Nothing here will run until those are filled in.
 
-**Reading this for the AutoCount work?** Start at *Costing — the one thing still
-not working*, near the end. It is the only place the two systems need to meet:
-the pages already have a slot for a cost per cup and a gross margin, and they
-show *Needs costing* because nothing supplies an ingredient price yet. The three
-steps that turn it on are written out there, including the exact tab and column
-names the pages expect.
+**Reading this for the AutoCount work?** Start at *Costing — built, and waiting on
+the price list*, near the end. It is the only place the two systems need to meet,
+and the code side of it is finished: every page costs a recipe, flags a price that
+cannot be right, and names the ingredient it is waiting on. What is missing is the
+prices themselves. The tab, the four column headings and the order to fill them in
+are written out there.
+
+---
+
+## Running it on a laptop
+
+Nothing here is a copy of the site. `tools/gas.js` supplies just enough Apps Script —
+`SpreadsheetApp`, `Utilities`, `DriveApp`, `LockService` and the rest — for the **real**
+`.gs` files to be loaded and run unmodified, against a fixture spreadsheet shaped like the
+live one. Whatever is proven here is proven about the files that are deployed.
+
+```bash
+node tools/test.js      # 93 checks
+node tools/serve.js     # the four pages, at http://localhost:8788
+```
+
+`tools/serve.js` runs the real `doGet()` and the real `prelude_()`, and answers the pages
+through the real `api()`. Only `google.script.run` is shimmed, because Apps Script provides
+it and a browser does not. So the pages you see are the pages as deployed, not a mock-up.
+Sign in as `manager` / `manager-pw` — a fixture password that exists only in `tools/gas.js`;
+the `PASTE-…` placeholders in `apps-script/` stay untouched, which is why the repository
+can be public.
+
+Add `--no-prices` to see the site exactly as it stands today, with no price list at all.
+
+`tools/fixture.js` deliberately reproduces every awkward thing this file records about the
+live sheet — the merged column I, a rejected version whose number was handed out again, the
+same submission written twice, text sitting in a number column, Chinese names, recipes with
+no status, and a version left PENDING REVIEW with no row in the queue. Those are the cases
+that break quietly. The shapes are real; the quantities and prices are invented.
+
+**What it cannot prove.** `submit_()` and `approve_()` write to the sheet. The harness runs
+them against a fixture, not against your spreadsheet, so an intake → approvals round trip
+still wants doing once on the live deployment.
 
 ---
 
@@ -613,13 +648,61 @@ sheet genuinely never held those numbers before. On the finder they degrade hone
 photo element at all, fields marked *Not available*, and the notice names exactly what is
 missing rather than implying the whole page is provisional.
 
-**Gross margin stays unavailable until costing works.** It needs a cost, and there isn't
-one — see below. It is not estimated from the selling price.
+**Gross margin needs a cost.** It is never estimated from the selling price — see below.
 
-## Costing — the one thing still not working
+## Costing — built, and waiting on the price list
 
-**472 ingredients, none priced.** Every recipe honestly reads *costing pending* rather
-than showing a guessed number. Three steps to switch it on.
+**The code is done. 472 ingredients are still unpriced**, so every recipe honestly reads
+*Needs costing* rather than showing a guessed number. Once this change is on the live site
+(*Putting this change on the live site*, below), filling in the `Prices` tab is the whole
+remaining job: a row typed there shows up on the next page load, with nothing to deploy
+and nothing to switch on.
+
+What was built, 4 Sep 2026:
+
+* **One arithmetic, in one place.** `costOf_` in `Web.gs` is the only thing that costs a
+  recipe, so the intake pricing a line as it is typed, the card the manager approves, the
+  Recipe Finder and the dashboard tile cannot disagree about what a drink costs.
+  `cost per unit = Pack Cost ÷ Units Per Pack`; a line is that times the quantity; a cup is
+  the lines added up, rounded once at the end rather than line by line.
+* **A recipe with any line it cannot cost reports no cost at all.** A partial total is a
+  wrong number wearing a right one's clothes. A drink that looks cheap because an
+  ingredient was forgotten is worse than one that admits it does not know yet.
+* **The two reasons are kept apart,** because they have different fixes. *No price yet for
+  Gula Melaka Syrup* is a job for the `Prices` tab. *The quantity recorded for LIME is not
+  a number* is a job for the R&D Log — those are the four `VOLUME USAGE` rows listed under
+  *Other things worth cleaning*. Every page names the ingredient rather than saying
+  "pending".
+* **A cost at or above the selling price is flagged, not hidden.** It is almost never a
+  drink that loses money; it is `Units Per Pack` not matching the UOM the recipe measures
+  in — a 1 L syrup entered as one pack, so every ML is charged at the price of the litre.
+  With 472 ingredients to price by hand out of AutoCount that is the mistake to expect, so
+  the figure is shown, marked **check units**, and the dearest line is named. Hiding it
+  would throw away the only signal that the price list needs correcting.
+
+Where it shows up:
+
+| | Before | Now |
+|---|---|---|
+| **Recipe Finder** | *Cost / cup* and *Gross margin* were fixed text | both real — **for a signed-in name only** |
+| **Dashboard** | *Costing done* was hard-coded to `0` | a real count, and it opens |
+| **Dashboard** | — | **Holding costing up**: which ingredients block the most recipes |
+| **Approvals** | old-connector submissions always read *pending* | costed from their own rows, with the margin |
+| **R&D Intake** | already built for this | unchanged, and it now has numbers to show |
+
+**Cost does not go to Sales.** The Finder is deliberately open to anyone with the link,
+which is exactly why what a drink costs to make is not in the answer it gives a stranger:
+the open feed carries no cost field at all — not hidden in the page, absent from the
+payload — and the two rows read *Staff only*. That is one condition in `feed_()` if you
+ever want it public.
+
+### Fill in the price list, in the order the dashboard gives you
+
+**Holding costing up** on the dashboard lists every unpriced ingredient with the number of
+recipes waiting on it, worst first. That is the order to work in — the top of that list
+buys the most recipes per row typed.
+
+Then three steps, unchanged:
 
 ### 1. Split the merged column in the R&D Log
 
@@ -673,22 +756,52 @@ Seed column A with every ingredient in use:
 Then **Copy → Paste special → Values only** over itself so you can type prices beside
 fixed rows.
 
-### 3. Nothing to point at — but know what lights up
+### 3. Nothing to point at
 
 `prices_()` finds the tab by its name, so there is no ID to copy and nothing to
 redeploy. Name it `Prices`, fill it in, reload.
 
-What changes the moment it exists:
+What changes the moment it exists — all four pages, with nothing to deploy:
 
 - **R&D Intake** prices every line as it is typed and stamps a cost per serving
   onto the submission.
-- **Approvals** shows that cost per serving on the card being approved.
-- **Recipe Finder** does **not**. Its *Cost / cup* and *Gross margin* rows are
-  fixed text in `pages/index.html`, left that way deliberately while there was
-  nothing to show. Showing them is a small edit to that page plus a read of
-  `prices.json` — a job of an hour, not a project, and it needs no redeployment
-  because the pages are read from Drive at request time.
-- **Dashboard** does not read prices at all.
+- **Approvals** shows that cost per serving on the card being approved, with the
+  gross margin beside it.
+- **Recipe Finder** fills in *Cost / cup* and *Gross margin*, for a signed-in
+  name.
+- **Dashboard** counts what is costed and what is not, opens both, and lists the
+  ingredients holding the most recipes up.
+
+A row typed into `Prices` shows up on the next page load. A row typed wrong shows
+up as **check units** rather than as a plausible-looking wrong number.
+
+### Putting this change on the live site
+
+`Web.gs` changed, so it needs a redeploy. Three of the four pages changed, so they need
+replacing in the **Recipe app** Drive folder — but pages are read from Drive at request
+time, so those take effect immediately with no deployment.
+
+1. Copy `apps-script/Web.gs` over the `Web` file in the spreadsheet's Apps Script project.
+   Put the six real values back where the `PASTE-…` placeholders are; they are in
+   `secrets.local.md`.
+2. Upload `pages/index.html`, `pages/approve.html` and `pages/dashboard.html` to the
+   **Recipe app** folder, replacing what is there. `intake.html` is unchanged.
+3. **Deploy → Manage deployments → pencil → Version *New version* → Deploy.** Same URL.
+   Type the description back in; it shows the old value as grey placeholder text, not as
+   a value, and leaving it alone renames the deployment to *Untitled*.
+4. Run **checkPages** from the editor. It should read *All four pages are exactly the
+   copies that were tested*:
+
+```
+index.html      24635 bytes  f53075f00416da94071564962a6d61dd
+intake.html     38921 bytes  5f34b85b984dcda91a799e7274bf741c
+approve.html    14426 bytes  dc9983fccd7b7a5a4d45e1d51aa3376b
+dashboard.html  27853 bytes  e58dca36074ed1df0e94d52e0e98f3fa
+```
+
+Costing needs no new permission: `prices_()` reads a tab in the spreadsheet the project
+already has. **To undo:** *Deploy → Manage deployments* rolls back to the previous version,
+and the three pages are in git.
 
 ---
 

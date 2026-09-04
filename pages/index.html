@@ -110,6 +110,9 @@ select.sort{font:inherit; font-size:13px; padding:6px 10px; border-radius:7px;
   font-weight:700; padding-top:2px}
 .kv dd{margin:0; color:var(--ink)}
 .na{color:var(--muted); font-style:italic}
+.money{font-family:var(--mono); font-size:13px}
+.flag{color:var(--warn); font-style:normal; font-size:11.5px; font-weight:650;
+  text-transform:uppercase; letter-spacing:.06em; margin-left:6px}
 h3.sec{margin:0 0 8px; font-size:11px; letter-spacing:.11em; text-transform:uppercase;
   color:var(--muted); font-weight:700}
 table.ing{width:100%; border-collapse:collapse; font-size:14px}
@@ -363,6 +366,57 @@ $('clearAll').addEventListener('click', () => {
   render();
 });
 
+/* ---------- cost ---------- */
+/* Cost and gross margin ride in the feed only for a signed-in name. This page
+   is open to anyone with the link — that is the point of it — and what a drink
+   costs to make is not something to hand a stranger. Signed out, the two rows
+   say so rather than disappearing, because a row that vanishes reads as a row
+   that does not exist. */
+const costed = () => !!(DATA && DATA.costing);
+const money  = n => 'RM ' + Number(n).toFixed(2);
+
+function costCell(r) {
+  if (!costed())      return '<span class="na">Staff only</span>';
+  if (r.cost == null) return '<span class="na">Needs costing</span>';
+  return '<span class="money">' + money(r.cost) + '</span>' +
+    (r.costCheck ? '<span class="flag">check units</span>' : '');
+}
+/* No cost or no selling price each mean no margin, and they are different
+   problems — so the row says which one it is waiting on. */
+function marginCell(r) {
+  if (!costed())        return '<span class="na">Staff only</span>';
+  if (r.margin == null) return '<span class="na">' +
+    (r.cost == null ? 'Needs costing' : 'No selling price recorded') + '</span>';
+  return '<span class="money">' + r.margin.toFixed(1) + '%</span>' +
+    (r.costCheck ? '<span class="flag">check units</span>' : '');
+}
+/* What is standing between this recipe and a cost, named precisely enough to
+   act on. Shown to staff only: it is the price list's to-do list. */
+function costNotice(r) {
+  if (!costed()) return '';
+  if (r.costCheck)
+    return '<div class="notice"><b>This costs more to make than it sells for.</b> ' +
+      esc(r.costCheck.why) +
+      (r.costCheck.worst ? ' The dearest line is <b>' + esc(r.costCheck.worst) + '</b>.' : '') +
+      '</div>';
+  if (r.cost != null) return '';
+  const why = [];
+  if (r.unpriced && r.unpriced.length)
+    why.push('there is no price yet for <b>' + esc(r.unpriced.join(', ')) + '</b>');
+  if (r.unmeasured && r.unmeasured.length)
+    why.push('the quantity recorded for <b>' + esc(r.unmeasured.join(', ')) +
+             '</b> is not a number');
+  return '<div class="notice"><b>Cost / cup is not available' + (why.length ? ':' : '.') +
+    '</b> ' + (why.length ? why.join(', and ') + '. ' : '') +
+    'Nothing on this page is estimated or guessed.</div>';
+}
+
+/* "no selling price, photo" is not a sentence. */
+function andList(a) {
+  return a.length < 2 ? (a[0] || '')
+       : a.slice(0, -1).join(', ') + ' or ' + a[a.length - 1];
+}
+
 /* ---------- detail ---------- */
 let currentId = null;
 function plain(r) {
@@ -392,23 +446,30 @@ function open(id) {
       '<dt>Chinese name</dt><dd>' + (r.zh ? esc(r.zh) : '<span class="na">Not recorded</span>') + '</dd>' +
       '<dt>Status</dt><dd>Approved</dd>' +
       '<dt>Approved</dt><dd>' + (r.m ? esc(r.m) : '<span class="na">Not recorded</span>') + '</dd>' +
-      '<dt>Cost / cup</dt><dd><span class="na">Costing not available</span></dd>' +
-      '<dt>Selling price</dt><dd>' + (r.price ? 'RM ' + esc(r.price) : '<span class="na">Not available</span>') + '</dd>' +
-      '<dt>Gross margin</dt><dd><span class="na">Needs costing</span></dd>' +
+      '<dt>Cost / cup</dt><dd>' + costCell(r) + '</dd>' +
+      /* The selling price is free text in the sheet, so it is shown as typed
+         rather than pushed through toFixed, which would turn anything that is
+         not a plain number into NaN. */
+      '<dt>Selling price</dt><dd>' + (r.price ? '<span class="money">RM ' + esc(r.price) + '</span>' : '<span class="na">Not available</span>') + '</dd>' +
+      '<dt>Gross margin</dt><dd>' + marginCell(r) + '</dd>' +
       '<dt>Method</dt><dd>' + (r.method ? esc(r.method).replace(/\n/g, '<br>') : '<span class="na">Not available</span>') + '</dd>' +
       '<dt>Serving size</dt><dd>' + (r.serve ? esc(r.serve) + ' ML' : '<span class="na">Not available</span>') + '</dd>' +
       '<dt>Created by</dt><dd>' + (r.by ? esc(r.by) : '<span class="na">Not recorded</span>') + '</dd>' +
     '</dl></div>' +
+    /* Two different notices, and each one appears only when it is true. The
+       costing one is for staff and names the ingredient in the way; the second
+       is about detail the intake form never captured for this recipe. */
+    costNotice(r) +
     (function(){
       var gaps=[];
       if(!r.price)  gaps.push('selling price');
       if(!r.serve)  gaps.push('serving size');
       if(!r.method) gaps.push('method');
       if(!r.p)      gaps.push('photo');
-      return '<div class="notice"><b>Cost / cup is not available.</b> It needs the AutoCount price '+
-        'link. Nothing on this page is estimated or guessed.'+
-        (gaps.length?' This recipe also has no '+esc(gaps.join(', '))+' recorded yet — those are '+
-          'entered on the R&amp;D intake form.':'')+'</div>';
+      return gaps.length
+        ? '<div class="notice">This recipe has no '+esc(andList(gaps))+' recorded yet — '+
+          (gaps.length===1?'that is':'those are')+' entered on the R&amp;D intake form.</div>'
+        : '';
     })() +
     '<div class="acts">' +
       '<button class="btn pri" id="dCopy">Copy recipe</button>' +

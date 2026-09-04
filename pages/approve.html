@@ -54,6 +54,9 @@ table.t td.v{font-family:var(--mono);white-space:nowrap;padding-left:10px;text-a
 .now{color:var(--accent);font-weight:600}
 .meta{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));font-size:13px}
 .meta div span{display:block;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:2px}
+/* A value is not a label. Without this the reason a cost is missing is shouted
+   back in capitals, because it is a span sitting in the same cell. */
+.meta div span.v{display:inline;font-size:inherit;letter-spacing:normal;text-transform:none;font-weight:inherit;margin:0;color:var(--warn)}
 .btn{appearance:none;font:inherit;font-size:13.5px;font-weight:650;cursor:pointer;padding:9px 16px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink)}
 .btn:hover{border-color:var(--ink-2)}
 .btn.ok{background:var(--accent);border-color:var(--accent);color:var(--bg)}
@@ -105,6 +108,24 @@ function when(iso){ if(!iso) return '';
   return d.getDate()+' '+M[d.getMonth()]+' '+d.getFullYear()+', '+
     ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
 
+/* Cost is worth deciding on, so it is worth saying what it leaves behind.
+   Margin is never inferred from one number alone: no cost or no selling price
+   both mean no margin. */
+function margin(it){
+  var p=parseFloat(it.price);
+  if(it.costPerServing==null||!isFinite(p)||p<=0) return null;
+  return Math.round((p-it.costPerServing)/p*1000)/10;
+}
+/* "pending" on its own tells the manager nothing they can act on. Naming the
+   ingredient turns it into one line of work on the price list. */
+function costWhy(it){
+  var out=[];
+  if(it.unpriced&&it.unpriced.length)     out.push('no price for '+esc(it.unpriced.join(', ')));
+  if(it.unmeasured&&it.unmeasured.length) out.push('quantity is not a number for '+
+                                                   esc(it.unmeasured.join(', ')));
+  return out.length?out.join('; '):'pending';
+}
+
 function load(){
   fetch('/api/pending?t='+Date.now(),{cache:'no-store'})
     .then(function(r){return r.json();}).then(draw)
@@ -149,8 +170,10 @@ function draw(d){
         (it.category?'<div><span>Category</span>'+esc(it.category)+'</div>':'')+
         (it.zh?'<div><span>Chinese name</span>'+esc(it.zh)+'</div>':'')+
         (it.reason?'<div><span>Reason</span>'+esc(it.reason)+'</div>':'')+
-        (it.costPerServing!=null?'<div><span>Cost / serving</span>RM'+Number(it.costPerServing).toFixed(2)+'</div>':
-          (it.costingPending?'<div><span>Cost / serving</span><span style="color:var(--warn)">pending</span></div>':''))+
+        (it.costPerServing!=null?'<div><span>Cost / serving</span>RM'+Number(it.costPerServing).toFixed(2)+
+            (margin(it)!=null?' &middot; '+margin(it).toFixed(1)+'% margin':'')+'</div>':
+          (it.costingPending?'<div><span>Cost / serving</span><span class="v">'+
+            costWhy(it)+'</span></div>':''))+
         (it.serving?'<div><span>Serving size</span>'+esc(it.serving)+' ML</div>':'')+
         (it.price?'<div><span>Selling price</span>RM'+esc(it.price)+'</div>':'')+
         (it.difficulty?'<div><span>Difficulty</span>'+esc(it.difficulty)+'</div>':'')+
