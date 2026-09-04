@@ -1080,3 +1080,115 @@ function checkPages() {
   Logger.log(msg);
   return msg;
 }
+
+/* ======================================================================
+ * preflight — run this after pasting, BEFORE you deploy
+ *
+ * The risky part of this deployment is not the code, it is the paste. Web.gs
+ * ships with PASTE-… placeholders where the salt, the signing key, the Drive
+ * folder id and three password hashes belong, because this repository is
+ * public. Deploying with any of them still in place does not fail politely: a
+ * missing folder id throws on every page load, and a changed salt or signing
+ * key signs everybody out at once.
+ *
+ * So this checks the things that are true or false rather than a matter of
+ * taste, and says READY or NOT READY. It writes nothing and deploys nothing.
+ *
+ *   Apps Script editor -> choose "preflight" -> Run -> read the log.
+ * ==================================================================== */
+function preflight() {
+  var out = [], bad = 0, warn = 0;
+  function ok_(m)   { out.push('  ok    ' + m); }
+  function no_(m)   { out.push('  WRONG ' + m); bad++; }
+  function note_(m) { out.push('  note  ' + m); warn++; }
+
+  out.push('SECRETS');
+  /* A placeholder is any value still carrying the shape this repository ships. */
+  var isPlaceholder = function (v) { return /^PASTE-/.test(String(v || '')); };
+  var pairs = [['AUTH_SALT', AUTH_SALT], ['AUTH_SECRET', AUTH_SECRET], ['APP_FOLDER', APP_FOLDER]];
+  for (var p = 0; p < pairs.length; p++) {
+    if (isPlaceholder(pairs[p][1])) no_(pairs[p][0] + ' is still the placeholder.');
+    else if (!String(pairs[p][1] || '').length) no_(pairs[p][0] + ' is empty.');
+    else ok_(pairs[p][0] + ' is set.');
+  }
+  if (!isPlaceholder(AUTH_SALT) && !isPlaceholder(AUTH_SECRET) && AUTH_SALT === AUTH_SECRET)
+    no_('AUTH_SALT and AUTH_SECRET are the same value. They are separate so that ' +
+        'ending every session does not also change every password.');
+
+  /* Code.gs's connector secret is only used by the archived Zo endpoint, so a
+     placeholder there is worth saying but is not a reason to stop. */
+  try { if (isPlaceholder(SECRET)) note_('Code.gs SECRET is still the placeholder. Nothing ' +
+        'calls doPost any more, so this only matters if you revive that endpoint.'); }
+  catch (e) { note_('Code.gs SECRET is not defined in this project.'); }
+
+  out.push('');
+  out.push('ACCOUNTS');
+  var names = [], n;
+  for (n in USERS) if (USERS.hasOwnProperty(n)) names.push(n);
+  if (!names.length) no_('USERS is empty — nobody can sign in.');
+  for (var u = 0; u < names.length; u++) {
+    var sha = String(USERS[names[u]].sha || '');
+    if (isPlaceholder(sha)) no_(names[u] + ' still has the placeholder hash.');
+    else if (!/^[0-9a-f]{64}$/i.test(sha)) no_(names[u] + ' has a hash that is not 64 hex ' +
+      'characters, so it cannot be a SHA-256 and that name can never sign in.');
+    else ok_(names[u] + ' (' + USERS[names[u]].role + ') has a real hash.');
+  }
+  var managers = 0;
+  for (var m = 0; m < names.length; m++) if (USERS[names[m]].role === 'manager') managers++;
+  if (!managers) no_('No account has the manager role, so nothing could ever be approved.');
+
+  out.push('');
+  out.push('THE SPREADSHEET');
+  var tabs = { log: 'R&D Log', ver: 'RECIPE VERSIONS', trial: 'R&D TRIAL LOG' };
+  for (var g in GID) {
+    if (!GID.hasOwnProperty(g)) continue;
+    try { ok_(tabs[g] + ' found (' + sheetByGid_(GID[g]).getName() + ').'); }
+    catch (e2) { no_(tabs[g] + ' is missing: ' + e2.message); }
+  }
+  try {
+    var cols = LOGCOLS_();
+    if (cols.ver < 0) no_('The R&D Log has no VERSION heading.');
+    else ok_('The R&D Log headings read cleanly.');
+  } catch (e3) { no_('Could not read the R&D Log headings: ' + e3.message); }
+
+  out.push('');
+  out.push('THE PAGES');
+  if (isPlaceholder(APP_FOLDER)) no_('Cannot check the pages until APP_FOLDER is set.');
+  else out.push(checkPages().split('\n\n')[0].replace(/^/gm, '  '));
+  if (!isPlaceholder(APP_FOLDER)) {
+    for (var f in PAGE_FINGERPRINTS) {
+      if (!PAGE_FINGERPRINTS.hasOwnProperty(f)) continue;
+      try {
+        var b = DriveApp.getFolderById(APP_FOLDER).getFilesByName(f).next().getBlob().getBytes();
+        if (hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, b)) !== PAGE_FINGERPRINTS[f].md5) bad++;
+      } catch (e4) { bad++; }
+    }
+  }
+
+  out.push('');
+  out.push('COSTING');
+  var pr = SpreadsheetApp.getActive().getSheetByName(PRICES_TAB);
+  if (!pr) note_('There is no ' + PRICES_TAB + ' tab yet, so every recipe will read ' +
+                 '"Needs costing". That is correct, not broken — run R&D Tools -> ' +
+                 'Update prices from AutoCount to build it.');
+  else {
+    var t = priceTable_();
+    ok_(PRICES_TAB + ' has ' + t.listed + ' rows, ' + t.priced + ' of them usable.');
+    if (!t.priced) note_('None of them carries both a pack cost and a units-per-pack, ' +
+                         'so nothing can be costed yet.');
+  }
+  var props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('GC_SYNC_URL') || !props.getProperty('GC_SYNC_TOKEN'))
+    note_('GC_SYNC_URL and GC_SYNC_TOKEN are not both set in Project Settings -> ' +
+          'Script Properties, so "Update prices from AutoCount" will refuse to run. ' +
+          'Everything else works without them.');
+  else ok_('The AutoCount snapshot settings are in place.');
+
+  var verdict = bad
+    ? 'NOT READY — ' + bad + ' thing(s) above must be fixed before you deploy. ' +
+      'Deploying now would break the live site.'
+    : 'READY to deploy' + (warn ? ', with ' + warn + ' note(s) above worth reading.' : '.');
+  var msg = out.join('\n') + '\n\n' + verdict;
+  Logger.log(msg);
+  return msg;
+}

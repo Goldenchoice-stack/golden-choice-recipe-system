@@ -800,19 +800,54 @@ time, so those take effect immediately with no deployment.
 3. **Deploy → Manage deployments → pencil → Version *New version* → Deploy.** Same URL.
    Type the description back in; it shows the old value as grey placeholder text, not as
    a value, and leaving it alone renames the deployment to *Untitled*.
-4. Run **checkPages** from the editor. It should read *All four pages are exactly the
-   copies that were tested*:
+### Run `preflight` before you deploy, not after
+
+The risky part of this is not the code, it is the paste. `Web.gs` ships with seven
+`PASTE-…` placeholders where the salt, the signing key, the Drive folder id and the three
+password hashes belong, because this repository is public. **Deploying with any of them
+still in place does not fail politely:** a missing folder id throws on every page load, and
+a changed salt or signing key signs everybody out at once.
+
+So after step 1 and before step 3, in the Apps Script editor choose **preflight** and press
+**Run**. It writes nothing and deploys nothing. It reads:
 
 ```
-index.html      24635 bytes  f53075f00416da94071564962a6d61dd
-intake.html     38921 bytes  5f34b85b984dcda91a799e7274bf741c
-approve.html    14426 bytes  dc9983fccd7b7a5a4d45e1d51aa3376b
-dashboard.html  27853 bytes  e58dca36074ed1df0e94d52e0e98f3fa
+SECRETS
+  ok    AUTH_SALT is set.
+  ok    AUTH_SECRET is set.
+  ok    APP_FOLDER is set.
+ACCOUNTS
+  ok    manager (manager) has a real hash.
+  ok    sakura (bi) has a real hash.
+  ok    robin (bi) has a real hash.
+THE SPREADSHEET
+  ok    R&D Log found.  RECIPE VERSIONS found.  R&D TRIAL LOG found.
+THE PAGES
+  ok    index.html      24635 bytes  f53075f00416da94071564962a6d61dd
+  ok    intake.html     38921 bytes  5f34b85b984dcda91a799e7274bf741c
+  ok    approve.html    14426 bytes  dc9983fccd7b7a5a4d45e1d51aa3376b
+  ok    dashboard.html  27853 bytes  e58dca36074ed1df0e94d52e0e98f3fa
+COSTING
+  note  There is no Prices tab yet …
+
+READY to deploy
 ```
 
-Costing needs no new permission: `prices_()` reads a tab in the spreadsheet the project
-already has. **To undo:** *Deploy → Manage deployments* rolls back to the previous version,
-and the three pages are in git.
+Anything it prints as `WRONG` is a thing that will break the live site. It ends with
+**READY to deploy** or **NOT READY**, and it also catches a hash that is not a SHA-256, a
+project with no manager, and the salt and the signing key having been set to the same
+value. `checkPages` still exists and is included in the run.
+
+**Having no `Prices` tab is a note, not a fault** — that is the state the sheet is in today,
+and every recipe correctly reads *Needs costing* until the tab exists.
+
+Costing itself needs no new permission — `prices_()` reads a tab in the spreadsheet the
+project already has. Only `Autocount.gs` widens anything, by one scope, and only because it
+reads the snapshot over HTTPS.
+
+**To undo:** *Deploy → Manage deployments* rolls back to the previous version, and the four
+page files are in git. The sheet itself is untouched by this change: nothing here writes a
+recipe row.
 
 ---
 

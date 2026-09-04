@@ -420,6 +420,49 @@ group('Reading the pack size off the item name');
   }
 }
 
+group('The preflight check, which is what stands between a paste and a broken site');
+{
+  /* secrets:false leaves the PASTE- placeholders exactly as committed. */
+  const raw = load(fx.build(), { now: NOW, secrets: false, properties: {} }).ctx.preflight();
+  ok('an unfilled paste is NOT READY', /NOT READY/.test(raw));
+  ok('and says deploying would break the live site', /break the live site/.test(raw));
+  ok('the salt is named', /AUTH_SALT is still the placeholder/.test(raw));
+  ok('the signing key is named', /AUTH_SECRET is still the placeholder/.test(raw));
+  ok('the Drive folder is named', /APP_FOLDER is still the placeholder/.test(raw));
+  ok('every account with a placeholder hash is named',
+     (raw.match(/still has the placeholder hash/g) || []).length === 3);
+  ok('the pages cannot be checked without the folder, and it says so',
+     /Cannot check the pages until APP_FOLDER/.test(raw));
+
+  const good = load(fx.build(), { now: NOW,
+    properties: { GC_SYNC_URL: 'https://s/x', GC_SYNC_TOKEN: 't' } }).ctx.preflight();
+  ok('a filled-in project is READY', /READY to deploy/.test(good) && !/NOT READY/.test(good));
+  ok('and confirms the four pages are the tested copies', /index\.html  24635/.test(good));
+  ok('and finds all three tabs', (good.match(/found \(/g) || []).length === 3);
+
+  /* The two keys are separate so that ending every session does not also
+     change every password. Reusing one for both quietly couples them. */
+  const same = load(fx.build(), { now: NOW, properties: {} });
+  same.ctx.AUTH_SECRET = same.ctx.AUTH_SALT;
+  ok('reusing one value for both keys is refused',
+     /AUTH_SALT and AUTH_SECRET are the same/.test(same.ctx.preflight()));
+
+  const noManager = load(fx.build(), { now: NOW, properties: {} });
+  noManager.ctx.USERS = { sakura: noManager.ctx.USERS.sakura };
+  ok('a project nobody could approve on is refused',
+     /No account has the manager role/.test(noManager.ctx.preflight()));
+
+  const short = load(fx.build(), { now: NOW, properties: {} });
+  short.ctx.USERS = { manager: { role: 'manager', pic: '', sha: 'not-a-sha256' } };
+  ok('a hash that is not a SHA-256 is caught before anyone finds they cannot sign in',
+     /cannot be a SHA-256/.test(short.ctx.preflight()));
+
+  /* No Prices tab is the state the live sheet is in today: a note, not a fault. */
+  const noPrices = load(fx.build({ withPrices: false }), { now: NOW, properties: {} }).ctx.preflight();
+  ok('having no price list yet does not block the deploy', /READY to deploy/.test(noPrices));
+  ok('but is said out loud', /no Prices tab yet/.test(noPrices));
+}
+
 group('The four pages are the tested copies');
 for (const [name, want] of Object.entries(ctx.PAGE_FINGERPRINTS)) {
   const buf = fs.readFileSync(path.join(__dirname, '..', 'pages', name));
