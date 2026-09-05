@@ -701,6 +701,46 @@ the open feed carries no cost field at all — not hidden in the page, absent fr
 payload — and the two rows read *Staff only*. That is one condition in `feed_()` if you
 ever want it public.
 
+### Settle the spellings before you start pricing — 5 Sep 2026
+
+The price list is joined to the recipes by the **name**, lower-cased and trimmed and
+nothing else. So a second spelling is a second row to price, and pricing one of them
+leaves every recipe on the other spelling uncosted with nothing on screen to say why.
+Run **`findLikeNames()`** in the editor before you price anything. On the live sheet
+today it finds, out of 441 names across 398 recipes:
+
+* **14 groups that are one ingredient spelt more than one way**, covering 307
+  recipe-slots — **107 of them uncostable** until somebody picks a spelling.
+* **6 cells holding a choice rather than an ingredient.**
+* **239 further pairs** worth a look.
+
+The pattern behind almost all of it is a **dose written into the ingredient name**:
+
+| One ingredient | Written as | Recipes |
+|---|---|---|
+| Espresso | `Espresso`, `Espresso 18G`, `Espresso (22g)`, `Espresso 22g`, `Espresso 16g`, `espresso (18G)` | 24 |
+| Flavoured Syrup Ice | `Flavored Syrup Ice 1.08kg – Ice Syrup`, `Flavoured Syrup Ice` | 16 |
+| Zonefor Chun Jian Long Jing Green Tea | `... 50g`, `... 50g (10G)` | 15 |
+| Thai Tea | `Thai Tea 12G`, `Thai Tea (12G)`, `Thai Tea` | 5 |
+| Jasmine Tea | `Jasmine Tea (12g)`, `JASMINE TEA` | 5 |
+| Thai Green | `Thai Green (12G)`, `Thai Green` | 4 |
+| Cheese Cap | `Cheese Cap (1:3)`, `Cheese Cap`, `Original Cheese Cap` | 4 |
+
+The quantity has its own column. A dose in the name splits one ingredient into five
+unpriceable ones, and 24 recipes wait on the split rather than on a price.
+
+The six cells holding a choice are `Soda Water/Water`, `Soda Water/ Water`,
+`Fructose/ White Sugar`, `Marie Biscuit/ Roti Kok (middle)`,
+`Ho Song Blueberry 850g Puree / Pulp in Syrup` and
+`Ho Song Pineapple Puree 900g / Pulp in Syrup`. No single price can be right for a
+line that means *either of these*: pick one, or split the line in two.
+
+`findLikeNames()` **writes nothing and merges nothing.** Whether `Coconut Milk` and
+`Milk` are one ingredient is a question about what the kitchen buys, and no rule can
+answer it — which is also why it ranks by the recipes a group **blocks** rather than by
+its size. `Ice` and `Ice (280+ 100)` are 200 recipe-slots and both already read 0 over 1,
+so they sit at the bottom. Rename in the R&D Log and the price list follows.
+
 ### Fill in the price list, in the order the dashboard gives you
 
 **Holding costing up** on the dashboard lists every unpriced ingredient with the number of
