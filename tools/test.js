@@ -787,6 +787,8 @@ group('Finding the pairs, and refusing to merge them');
   ok('the two spellings of one syrup are grouped', /Flavoured Syrup Ice/.test(same) &&
      /Flavored Syrup Ice 1\.08kg/.test(same));
   ok('with the recipes waiting on them counted', /3 recipe-slots/.test(same));
+  ok('and how many of those cannot be costed yet',
+     /3 of them uncostable until this is settled/.test(same));
   ok('and each spelling says whether it is priced', /not priced/.test(same));
   ok('coconut milk is not grouped with coconut water', !/Coconut Milk/.test(same));
 
@@ -799,6 +801,27 @@ group('Finding the pairs, and refusing to merge them');
   ok('nothing at all was written', N.library_().every(r =>
      r.ing.every(i => i.n !== 'Flavored Syrup Ice')));
   ok('the report says so out loud', /nothing[\s\S]*was written/i.test(msg));
+
+  /* Ranking is by what is BLOCKED, not by group size: a group where every
+     spelling is already priced is real but buys nothing this week. */
+  {
+    const g = fx.build();
+    g.tabs[0].values = [fx.LOG_HEAD.slice()].concat(
+      /* Kopi Base is priced in the fixture; Apple Juice is not. */
+      mk('RCP-9101', 'P', ['Kopi Base']), mk('RCP-9102', 'Q', ['Kopi Base']),
+      mk('RCP-9103', 'R', ['Kopi Base 1L']),
+      mk('RCP-9104', 'S', ['Apple Juice']), mk('RCP-9105', 'T', ['Apple Juice 1L']));
+    /* Both spellings of Kopi Base priced, so that group blocks nothing. */
+    g.tabs.filter(t => t.name === 'Prices')[0].values.push(['Kopi Base 1L', 18, 1000, '']);
+    const r = load(g, { now: NOW }).ctx.findLikeNames();
+    const body = r.split(/\n\n/).filter(b => b.indexOf('2.') === 0)[0];
+    ok('the group that blocks costing comes first',
+       body.indexOf('Apple Juice') < body.indexOf('Kopi Base'), body);
+    ok('and a fully priced group says so plainly',
+       /all of them priced already/.test(body), body);
+    ok('the headline counts only what is stuck',
+       /2 of which cannot be costed/.test(r), r.split('\n').slice(0, 8).join(' | '));
+  }
 
   /* The fixture on its own must produce no false finding. */
   const clean = load(fx.build(), { now: NOW }).ctx.findLikeNames();

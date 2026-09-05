@@ -115,13 +115,23 @@ function findLikeNames() {
     return spelling[k] + '  (' + uses[k] + ' recipe' + (uses[k] === 1 ? '' : 's') + ', ' +
            (priced_(k) ? 'PRICED' : 'not priced') + ')';
   }
-  /* The most blocking group first, because that is the order to work in. */
   function weight_(ks) {
     var n = 0;
     for (var a = 0; a < ks.length; a++) n += uses[ks[a]];
     return n;
   }
-  function byWeight_(x, y) { return weight_(y.keys) - weight_(x.keys); }
+  /* Recipes in the group that cannot be costed today. This is the ranking, not
+     the group's size: "Ice" and "Ice (280+ 100)" are 200 recipe-slots and both
+     are priced, so merging them buys nothing this week, while six spellings of
+     Espresso are 24 recipes that cannot be costed at all. Size breaks ties. */
+  function blocking_(ks) {
+    var n = 0;
+    for (var a = 0; a < ks.length; a++) if (!priced_(ks[a])) n += uses[ks[a]];
+    return n;
+  }
+  function byWeight_(x, y) {
+    return (blocking_(y.keys) - blocking_(x.keys)) || (weight_(y.keys) - weight_(x.keys));
+  }
 
   /* --------------------------------------------- 1. a cell holding a choice */
   var choices = [], isChoice = {};
@@ -180,15 +190,19 @@ function findLikeNames() {
   /* ------------------------------------------------------------- the report */
   /* The headline goes FIRST. Apps Script truncates a long log, and the count is
      the part that must survive; the lists can be read a section at a time. */
-  var out = [], n, blocked = 0;
-  for (i = 0; i < same.length; i++) blocked += weight_(same[i].keys);
+  var out = [], n, blocked = 0, stuck = 0;
+  for (i = 0; i < same.length; i++) {
+    blocked += weight_(same[i].keys);
+    stuck += blocking_(same[i].keys);
+  }
 
   out.push('THE SAME INGREDIENT WRITTEN TWO WAYS');
   out.push('');
   out.push('   ' + keys.length + ' distinct ingredient names across ' + lib.length + ' recipes.');
   out.push('   ' + choices.length + ' cell(s) hold a choice rather than an ingredient.');
   out.push('   ' + same.length + ' group(s) are one ingredient spelt more than one way, ' +
-           'covering ' + blocked + ' recipe-slots.');
+           'covering ' + blocked + ' recipe-slots,');
+  out.push('       ' + stuck + ' of which cannot be costed until somebody settles the spelling.');
   out.push('   ' + single.length + ' further pair(s) are worth a look.');
   out.push('');
   out.push('Nothing here has been changed. The price list is joined to the recipes by');
@@ -209,7 +223,9 @@ function findLikeNames() {
   if (!same.length) out.push('   none');
   for (i = 0; i < same.length; i++) {
     var ks = same[i].keys;
-    out.push('   — ' + weight_(ks) + ' recipe-slots between them');
+    out.push('   — ' + weight_(ks) + ' recipe-slots between them, ' +
+             (blocking_(ks) ? blocking_(ks) + ' of them uncostable until this is settled'
+                            : 'all of them priced already'));
     for (n = 0; n < ks.length; n++) out.push('       ' + label_(ks[n]));
   }
   out.push('');
