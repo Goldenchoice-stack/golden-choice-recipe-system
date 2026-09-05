@@ -1096,6 +1096,23 @@ function dashboard_() {
  * Run checkPages() any time to confirm the copies in Drive are exactly the
  * ones that were tested. It reads them, fingerprints them, and says so.
  * ==================================================================== */
+/**
+ * The four pages this repository ships, and the trust anchor installPages checks
+ * PagesData.gs against before it writes anything.
+ *
+ * THE LIVE PROJECT'S COPY OF THIS BLOCK IS DIFFERENT ON PURPOSE. Another editor
+ * improved index, intake and approve on 5 Sep 2026; the live files are the source
+ * of truth and this repository is behind on those three. The live Web.gs
+ * therefore carries the live sizes and md5s, so checkPages() and preflight() read
+ * clean there, while this copy describes what is actually in pages/ here.
+ *
+ * DO NOT WHOLE-FILE PASTE THIS Web.gs OVER THE LIVE ONE until pages/ has been
+ * brought level — doing so makes preflight call three good live pages WRONG, and
+ * points installPages at rolling them back. It has happened once.
+ *
+ * To bring this repository level: copy the live files into pages/, re-run
+ * tools/make-pagedata.js, and update these four lines from the result.
+ */
 var PAGE_FINGERPRINTS = {
   'index.html':     { size: 24635, md5: 'f53075f00416da94071564962a6d61dd' },
   'intake.html':    { size: 38921, md5: '5f34b85b984dcda91a799e7274bf741c' },
