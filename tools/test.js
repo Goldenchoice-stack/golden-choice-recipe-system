@@ -287,6 +287,45 @@ group('Reading the pack size off the item name');
   ok('and shows the cost per unit worked out',
      /RM0\.13500 per G/.test(A.ctx.acShortlist_(m('Matcha Powder').full, 6)));
 
+  group('What the preview says would change');
+  {
+    const D = bare();
+    D.ss.insertSheet('Prices');
+    /* Nothing in the tab yet, so every row this builds is an addition. */
+    const first = D.ctx.acFill_(true);
+    eq('with an empty tab nothing is an update', first.counts.changed, 0);
+    eq('and nothing is unchanged either', first.counts.same, 0);
+    ok('every row it would write counts as added', first.counts.added > 0);
+    eq('added covers every row', first.counts.added,
+       first.counts.chosen + first.counts.matched + first.counts.waiting +
+       first.counts.blocked + first.counts.none);
+    eq('a blocked or unmatched row carries no price', first.counts.blank,
+       first.counts.waiting + first.counts.blocked + first.counts.none);
+    eq('and blocked splits into the two reasons', first.counts.blocked,
+       first.counts.uomClash + first.counts.noPack);
+
+    /* Write it, then preview again: the same numbers must now read as unchanged. */
+    D.ctx.acFill_();
+    const again = D.ctx.acFill_(true);
+    eq('running it twice would add nothing', again.counts.added, 0);
+    eq('and change nothing', again.counts.changed, 0);
+    ok('every row is identical to what is there', again.counts.same > 0);
+    eq('while it still prices the same ingredients',
+       again.counts.chosen + again.counts.matched,
+       first.counts.chosen + first.counts.matched);
+
+    ok('the report answers the price question in words',
+       /row\(s\) added, 0 with a different price or pack size/.test(again.report),
+       again.report.split('WHAT WOULD CHANGE')[1]);
+    ok('and says a zero price is impossible rather than merely absent',
+       /A price of zero is impossible here/.test(again.report));
+    ok('and names the unit clashes separately from the missing pack sizes',
+       /are a unit clash/.test(again.report) && /have no pack size/.test(again.report));
+    ok('and reports on shared item codes either way',
+       /ONE ITEM CODE, MORE THAN ONE INGREDIENT|No item code is used by two/.test(again.report));
+    ok('dupCodes is a list, not a count', Array.isArray(again.counts.dupCodes));
+  }
+
   group('The dry run, before anything is written');
   {
     /* acFill_ clears the whole Prices tab and rewrites it. A preview that does

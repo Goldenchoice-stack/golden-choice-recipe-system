@@ -331,7 +331,12 @@ function acFill_(dryRun) {
   for (var c = 0; c < catalogue.length; c++) byCode[key_(catalogue[c].code)] = catalogue[c];
 
   var today = today_(), rows = [];
-  var n = { chosen: 0, matched: 0, waiting: 0, blocked: 0, none: 0, kept: 0 };
+  var n = { chosen: 0, matched: 0, waiting: 0, blocked: 0, none: 0, kept: 0,
+            noPack: 0, uomClash: 0, added: 0, changed: 0, same: 0, blank: 0 };
+  /* Which ingredients end up on the same AutoCount item. Two spellings of one
+     product SHOULD share a code; two different products must not, and a shared
+     code is the only way to see the second from here. */
+  var usedCode = {};
 
   for (var i = 0; i < ings.length; i++) {
     var ing = ings[i], prev = had[key_(ing.name)];
@@ -393,22 +398,41 @@ function acFill_(dryRun) {
       row[8] = 'The item name does not say how much is in one ' + (item.uom || 'pack') +
                ', so cost per unit cannot be worked out. Put the pack size in column C ' +
                'by hand and your name in Source.';
-      n.blocked++;
+      n.blocked++; n.noPack++;
     } else if (!acSameUnit_(ing.uom, item.pack.unit)) {
       row[7] = item.pack.text;
       row[8] = 'The pack is measured in ' + item.pack.unit + ' and the recipe in ' +
                (ing.uom || 'nothing recorded') + '. Converting between them is a density, ' +
                'not arithmetic, so it is left for a person.';
-      n.blocked++;
+      n.blocked++; n.uomClash++;
     } else {
       row[1] = item.price;
       row[2] = item.pack.qty;
       row[5] = AC_SOURCE;
       row[7] = item.pack.text;
       if (how === 'chosen') n.chosen++; else n.matched++;
+      (usedCode[item.code] = usedCode[item.code] || []).push(ing.name);
     }
     rows.push(row);
   }
+
+  /* What this run would actually DO to the tab, row by row, against what is
+     there now. Counted here rather than guessed from the totals above, because
+     "priced" and "changed" are different questions: a row already carrying the
+     right price is priced and unchanged. */
+  for (var d = 0; d < rows.length; d++) {
+    var dn = rows[d], dp = had[key_(S_(dn[0]))];
+    if (!dp) { n.added++; if (S_(dn[1]) === '') n.blank++; continue; }
+    if (S_(dn[1]) === '') n.blank++;
+    var moved = false;
+    for (var col = 1; col <= 2; col++)
+      if (S_(dn[col]) !== S_(dp[col] === undefined ? '' : dp[col])) moved = true;
+    if (moved) n.changed++; else n.same++;
+  }
+  n.dupCodes = [];
+  for (var uc in usedCode)
+    if (usedCode.hasOwnProperty(uc) && usedCode[uc].length > 1)
+      n.dupCodes.push(uc + '  <-  ' + usedCode[uc].join(', '));
 
   /* An ingredient can leave the log — renamed, or its last recipe rejected —
      and the row would then simply not be rebuilt. Somebody's typed price would
@@ -464,6 +488,19 @@ function acFill_(dryRun) {
       (n.orphan ? is(n.orphan, 'row is', 'rows are') + ' no longer used by any recipe, and ' +
                   (n.orphan === 1 ? 'was' : 'were') + ' kept at the bottom rather than ' +
                   'thrown away.\n' : '') + '\n' +
+      '\nWHAT WOULD CHANGE IN THE TAB\n' +
+      '  ' + n.added + ' row(s) added, ' + n.changed + ' with a different price or pack ' +
+      'size, ' + n.same + ' identical to what is there now.\n' +
+      '  ' + n.blank + ' row(s) would carry no price at all. A price of zero is impossible ' +
+      'here:\n' +
+      '  an item with no purchase price above zero is never offered in the first place.\n' +
+      '  Of the ' + n.blocked + ' that have an item but cannot be priced, ' + n.uomClash +
+      ' are a unit clash\n' +
+      '  and ' + n.noPack + ' have no pack size in the item name.\n' +
+      (n.dupCodes.length
+        ? '\nONE ITEM CODE, MORE THAN ONE INGREDIENT — check these are the same product\n' +
+          '  ' + n.dupCodes.join('\n  ') + '\n'
+        : '\nNo item code is used by two different ingredients.\n') + '\n' +
       'Nothing here was priced on a guess. Price a row by hand and put your name in ' +
       'Source, and no future run will touch it.' +
       (dryRun ? '\n\nNothing was written. The real run rebuilds the whole tab from these ' +
