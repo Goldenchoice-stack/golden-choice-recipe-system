@@ -829,6 +829,104 @@ group('Finding the pairs, and refusing to merge them');
   ok('a library with no duplicate spellings reports none', /none/.test(cs), cs);
 }
 
+/* =================================================== one ingredient, one name */
+/**
+ * Renaming rewrites the R&D Log, which is the only place a recipe exists. The
+ * risk is not the rename: it is the DOSE. "Espresso 18G" is 18 grams, and the
+ * quantity has its own column, so a careless rename deletes a measurement. Most
+ * of what follows is the refusals.
+ */
+group('Reading a dose out of a name');
+{
+  const R = load(fx.build(), { now: NOW }).ctx;
+  const d = x => R.rnDose_(x);
+  eq('a bare dose', d('18G'), { qty: 18, unit: 'G', text: '18 G' });
+  eq('brackets come off', d('(22g)'), { qty: 22, unit: 'G', text: '22 G' });
+  eq('and so does slack inside them', d('( 15G )'), { qty: 15, unit: 'G', text: '15 G' });
+  eq('a space between number and unit is fine', d('12 g'), { qty: 12, unit: 'G', text: '12 G' });
+  eq('cc is millilitres', d('55cc'), { qty: 55, unit: 'ML', text: '55 ML' });
+  ok('a ratio is not a dose', d('(1:3)') === null);
+  ok('nor is a word', d('(Premium)') === null);
+  ok('nor is a unit this does not measure in', d('18 scoops') === null);
+  ok('nor is nothing at all', d('') === null);
+
+  const e = (n, t) => R.rnExtra_(n, t);
+  eq('what is left after the target comes off', e('Espresso 18G', 'Espresso'), ' 18G');
+  eq('case does not matter', e('espresso (18G)', 'Espresso'), ' (18G)');
+  eq('an exact match leaves nothing', e('Espresso', 'Espresso'), '');
+  ok('a name that does not start with the target is refused outright',
+     e('Original Cheese Cap', 'Cheese Cap') === null);
+}
+
+group('Planning a rename, and refusing half of it');
+{
+  const f = fx.build();
+  const row = (id, ing, qty, uom) =>
+    ['2026-08-01', id, 'R ' + id, ing, qty, uom, 'GC', 'Approved', '', 'V1.0'];
+  f.tabs[0].values = [fx.LOG_HEAD.slice(), 
+    row('RCP-9201', 'Espresso', '30', 'ML'),
+    row('RCP-9202', 'Espresso 18G', '18', 'G'),
+    row('RCP-9203', 'Espresso (22g)', '', ''),
+    row('RCP-9204', 'Espresso 16g', '30', 'ML'),
+    row('RCP-9205', 'espresso (18G)', 'follow powder', 'G'),
+    row('RCP-9206', 'Cheese Cap (1:3)', '40', 'ML'),
+    row('RCP-9207', 'Original Cheese Cap', '40', 'ML')];
+  const A = load(f, { now: NOW });
+  const R = A.ctx;
+  const p = R.renamePlan_(R.ESPRESSO, 'Espresso');
+  const rows = g => p[g].map(x => x.from);
+
+  eq('every row carrying an old spelling is found', p.rows, 5);
+  eq('the one already spelt right is left alone', rows('nothing'), ['Espresso']);
+  eq('a dose the quantity column already records is only a rename',
+     rows('rename'), ['Espresso 18G']);
+  eq('a dose with nowhere recorded is moved across',
+     rows('move'), ['Espresso (22g)', 'espresso (18G)']);
+  eq('and a dose that contradicts the quantity column is refused',
+     rows('refuse'), ['Espresso 16g']);
+  ok('the refusal says what the two numbers were',
+     /name says 16 G and the quantity column says 30 ML/.test(p.refuse[0].why), p.refuse[0].why);
+
+  /* Not a dose at all. */
+  const q = R.renamePlan_(['Cheese Cap (1:3)', 'Original Cheese Cap'], 'Cheese Cap');
+  eq('a ratio in the name is refused, not dropped', q.refuse.length, 2);
+  ok('because it is not a measurement', /not a measurement/.test(q.refuse[0].why));
+  ok('and an extra word is refused for a different reason',
+     /something other than a dose differs/.test(q.refuse[1].why));
+
+  ok('planning writes nothing at all', A.ss.getSheetByName('R&D Log')
+     .getRange(2, 4, 7, 1).getValues().map(r => r[0]).join('|') ===
+     'Espresso|Espresso 18G|Espresso (22g)|Espresso 16g|espresso (18G)|Cheese Cap (1:3)|Original Cheese Cap');
+
+  group('Applying it');
+  const msg = R.renameApply_(R.ESPRESSO, 'Espresso');
+  const sh = A.ss.getSheetByName('R&D Log');
+  const after = sh.getRange(2, 1, 7, 10).getValues();
+  const ing = i => String(after[i][3]), qty = i => String(after[i][4]), uom = i => String(after[i][5]);
+
+  eq('the row that already recorded its dose is now plain', ing(1), 'Espresso');
+  eq('and its quantity is untouched', qty(1) + ' ' + uom(1), '18 G');
+  eq('the empty one is renamed', ing(2), 'Espresso');
+  eq('and the dose moved into the quantity column', qty(2) + ' ' + uom(2), '22 G');
+  eq('so is the one whose quantity was text', ing(4), 'Espresso');
+  eq('and the text it replaced was not a number anyway', qty(4) + ' ' + uom(4), '18 G');
+  eq('the contradicting row is left exactly as it was', ing(3), 'Espresso 16g');
+  eq('with its quantity untouched too', qty(3) + ' ' + uom(3), '30 ML');
+  eq('and nothing outside the list is touched', ing(5) + '|' + ing(6),
+     'Cheese Cap (1:3)|Original Cheese Cap');
+
+  ok('the report prints the old value of every row it wrote',
+     /Espresso \(22g\)/.test(msg) && /espresso \(18G\)/.test(msg));
+  ok('and says the refused one still needs a person',
+     /REFUSED[\s\S]*Espresso 16g/.test(msg));
+  ok('it points at the sheet history for a real undo', /Version history/.test(msg));
+
+  /* Running it twice must find nothing left to do. */
+  const again = R.renamePlan_(R.ESPRESSO, 'Espresso');
+  eq('a second run renames nothing', again.rename.length + again.move.length, 0);
+  eq('and still refuses the one it refused', again.refuse.length, 1);
+}
+
 group('The four pages are the tested copies');
 for (const [name, want] of Object.entries(ctx.PAGE_FINGERPRINTS)) {
   const buf = fs.readFileSync(path.join(__dirname, '..', 'pages', name));

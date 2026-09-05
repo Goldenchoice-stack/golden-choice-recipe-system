@@ -1,0 +1,198 @@
+/**
+ * Golden Choice — one ingredient, one spelling.
+ *
+ * findLikeNames() says which names are the same ingredient. This is what fixes
+ * one, by rewriting the INGREDIENT NAME cell in the R&D Log and nothing else.
+ *
+ * THE DANGER IS THE DOSE. "Espresso 18G" is not a spelling of "Espresso" with
+ * noise on the end — the 18G is a real measurement, and the quantity has its own
+ * column, so renaming without looking would delete it. So every row is read
+ * first and sorted into four cases:
+ *
+ *   NOTHING TO CARRY   The old name is the target with only case or spacing
+ *                      different. Rename, and that is all.
+ *   ALREADY RECORDED   The name carries a dose, and the quantity column already
+ *                      says the same thing. The name is repeating the cell next
+ *                      to it. Rename; nothing is lost.
+ *   MOVE IT ACROSS     The name carries a dose and the quantity column is empty
+ *                      or holds text. Rename, and write the dose into the
+ *                      quantity and UOM columns where it belongs.
+ *   REFUSED            Anything else. The name carries a dose and the quantity
+ *                      column holds a DIFFERENT number — two measurements
+ *                      disagree and only a person knows which is right. Or the
+ *                      part being removed is not a dose at all: "Cheese Cap
+ *                      (1:3)" is a ratio and "Original Cheese Cap" is a word.
+ *
+ * A refused row is left exactly as it was and named in the report. Nothing is
+ * ever renamed by guessing what the extra text meant.
+ *
+ * It runs as a plan first. renamePlan_() writes nothing at all; renameApply_()
+ * writes only the rows the plan called safe, and reports every old value it
+ * replaced. The sheet's own File -> Version history is the real undo.
+ */
+
+/* Units the log measures in. A dose in the name is only understood in one of
+   these; anything else is refused rather than assumed. */
+var RN_UNITS = { G: 'G', GM: 'G', GRAM: 'G', GRAMS: 'G', KG: 'KG',
+                 ML: 'ML', L: 'L', CC: 'ML', PC: 'PC', PCS: 'PC' };
+
+/**
+ * The measurement left over when the target name is taken off the front.
+ * "18G", "(22g)", "( 15G )" and "12 g" are doses. "1:3" is a ratio, "Grade A" is
+ * a word, and both come back null so the row is refused.
+ */
+function rnDose_(extra) {
+  var s = String(extra == null ? '' : extra)
+    .replace(/^[\s\-–—:,(\[]+|[\s\-–—:,)\]]+$/g, '')
+    .replace(/\s+/g, ' ');
+  if (!s) return null;
+  var m = /^(\d+(?:\.\d+)?)\s*([A-Za-z]+)$/.exec(s);
+  if (!m) return null;
+  var u = RN_UNITS[m[2].toUpperCase()];
+  if (!u) return null;
+  return { qty: parseFloat(m[1]), unit: u, text: m[1] + ' ' + u };
+}
+
+/* What is left of `name` once `target` is taken off the front, case-blind. */
+function rnExtra_(name, target) {
+  var n = String(name == null ? '' : name).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+  var t = String(target).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+  if (n.toLowerCase().indexOf(t.toLowerCase()) !== 0) return null;   /* not a prefix */
+  return n.slice(t.length);
+}
+
+/**
+ * Reads the R&D Log and decides, row by row, what renaming `froms` to `to` would
+ * do. WRITES NOTHING. Every caller runs this first, including the one that
+ * writes: the plan is the thing that is checked, and the write only replays it.
+ */
+function renamePlan_(froms, to) {
+  var L = LOGCOLS_(), sh = sheetByGid_(GID.log);
+  if (L.ing < 0) throw new Error('The R&D Log has no INGREDIENT NAME column.');
+  /* Without the quantity column every dose would look unrecorded and be written
+     into column zero. Refuse rather than find that out mid-write. */
+  if (L.qty < 0) throw new Error('The R&D Log has no VOLUME USAGE column, so a dose ' +
+                                 'in a name could not be checked. Nothing was changed.');
+  var want = {}, i;
+  for (i = 0; i < froms.length; i++) want[key_(froms[i])] = froms[i];
+
+  var n = sh.getLastRow();
+  var vals = n < 2 ? [] : sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
+  var plan = { to: to, rename: [], move: [], nothing: [], refuse: [], rows: 0 };
+
+  for (i = 0; i < vals.length; i++) {
+    var name = S_(vals[i][L.ing]);
+    if (!want[key_(name)]) continue;
+    plan.rows++;
+    var row = i + 2;
+    var at = { row: row, id: S_(vals[i][L.id]), ver: S_(vals[i][L.ver]) || 'V1.0',
+               recipe: S_(vals[i][L.name]), from: name,
+               qty: S_(vals[i][L.qty]), uom: S_(vals[i][L.uom]) };
+
+    if (key_(name) === key_(to)) { at.why = 'already the target spelling'; plan.nothing.push(at); continue; }
+
+    var extra = rnExtra_(name, to);
+    if (extra === null) {
+      at.why = 'does not start with "' + to + '", so something other than a dose differs';
+      plan.refuse.push(at); continue;
+    }
+    if (!extra.replace(/\s+/g, '')) { at.why = 'only case or spacing differs'; plan.rename.push(at); continue; }
+
+    var dose = rnDose_(extra);
+    if (!dose) {
+      at.why = '"' + extra.replace(/^\s+|\s+$/g, '') + '" is not a measurement this understands';
+      plan.refuse.push(at); continue;
+    }
+    at.dose = dose.text;
+
+    var q = parseFloat(at.qty);
+    var sameNumber = isFinite(q) && q === dose.qty;
+    var sameUnit = key_(at.uom) === key_(dose.unit);
+    if (sameNumber && sameUnit) {
+      at.why = 'the quantity column already says ' + dose.text;
+      plan.rename.push(at); continue;
+    }
+    if (!num_(at.qty)) {
+      at.why = 'the quantity column holds ' + (at.qty ? '"' + at.qty + '"' : 'nothing') +
+               ', so ' + dose.text + ' moves into it';
+      plan.move.push(at); continue;
+    }
+    at.why = 'the name says ' + dose.text + ' and the quantity column says ' +
+             at.qty + ' ' + (at.uom || '(no unit)') + ' — two measurements, and only a ' +
+             'person knows which is right';
+    plan.refuse.push(at);
+  }
+  return plan;
+}
+
+/* One block of the report. */
+function rnList_(head, rows, note) {
+  if (!rows.length) return '';
+  var out = ['   ' + head + '  (' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + ')'];
+  if (note) out.push('   ' + note);
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    out.push('     row ' + r.row + '  ' + r.id + ' ' + r.ver + '  ' + r.recipe);
+    out.push('        "' + r.from + '"  qty ' + (r.qty || '(empty)') + ' ' + r.uom +
+             '  —  ' + r.why);
+  }
+  return out.join('\n') + '\n';
+}
+
+function rnReport_(plan, applied) {
+  var head = applied ? 'INGREDIENT RENAMED' : 'RENAME PLAN — NOTHING HAS BEEN WRITTEN';
+  var out = [head, ''];
+  out.push('   Target spelling: "' + plan.to + '"');
+  out.push('   ' + plan.rows + ' row(s) carry one of the old spellings.');
+  out.push('   ' + plan.rename.length + ' rename cleanly, ' + plan.move.length +
+           ' also need a dose moved into the quantity column, ' +
+           plan.refuse.length + ' refused.');
+  out.push('');
+  out.push(rnList_(applied ? 'RENAMED' : 'WOULD RENAME', plan.rename));
+  out.push(rnList_(applied ? 'RENAMED, AND THE DOSE MOVED ACROSS' : 'WOULD RENAME AND MOVE THE DOSE',
+                   plan.move,
+                   'The quantity column is where a measurement belongs; the name was repeating it.'));
+  out.push(rnList_('LEFT ALONE', plan.nothing));
+  out.push(rnList_('REFUSED — not touched, and still needs a person', plan.refuse));
+  if (!applied) {
+    out.push('   Nothing above has been written. Run the apply function to do it.');
+  } else {
+    out.push('   Written. The old values are printed above, and the spreadsheet keeps');
+    out.push('   its own File -> Version history if the whole thing wants undoing.');
+    out.push('   Run seedPrices() afterwards so the Prices tab drops the rows for the');
+    out.push('   spellings that no longer exist.');
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+/**
+ * Replays a plan onto the sheet. Only the rows the plan called safe, only the
+ * ingredient, quantity and UOM columns, one cell at a time so a failure part way
+ * leaves the rest readable rather than half a block rewritten.
+ */
+function renameApply_(froms, to) {
+  var plan = renamePlan_(froms, to), L = LOGCOLS_(), sh = sheetByGid_(GID.log), i;
+  for (i = 0; i < plan.rename.length; i++)
+    sh.getRange(plan.rename[i].row, L.ing + 1).setValue(to);
+  for (i = 0; i < plan.move.length; i++) {
+    var m = plan.move[i], d = rnDose_(rnExtra_(m.from, to));
+    sh.getRange(m.row, L.ing + 1).setValue(to);
+    sh.getRange(m.row, L.qty + 1).setValue(d.qty);
+    if (L.uom >= 0) sh.getRange(m.row, L.uom + 1).setValue(d.unit);
+  }
+  var msg = rnReport_(plan, true);
+  Logger.log(msg);
+  return msg;
+}
+
+/* ------------------------------------------------------------------ Espresso */
+
+/* The six spellings findLikeNames() found on 5 Sep 2026, and the one they mean.
+   Listed rather than matched by a rule: renaming is the one thing here that
+   changes the recipes, so what it touches is written down and reviewable. */
+var ESPRESSO = ['Espresso', 'Espresso 18G', 'Espresso (22g)', 'Espresso 22g',
+                'Espresso 16g', 'espresso (18G)'];
+
+function espressoPlan()  { var m = rnReport_(renamePlan_(ESPRESSO, 'Espresso'), false);
+                           Logger.log(m); return m; }
+function espressoApply() { return renameApply_(ESPRESSO, 'Espresso'); }
