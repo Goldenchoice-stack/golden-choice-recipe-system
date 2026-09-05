@@ -1117,3 +1117,29 @@ UOM `PC`.
 
 **199 recipes have no status at all** — never assessed. That is a review backlog rather
 than a bug, but it is the largest number on the dashboard.
+
+## AutoCount — what is actually missing (5 Sep 2026)
+
+Not the Google authorisation. The Apps Script project already requests all four
+scopes it needs, **including `script.external_request`**, and 3,557 executions
+have run under them. Apps Script authorises a project's whole scope set at once,
+so a missing scope would have stopped every run with a consent screen. None
+appeared.
+
+What is missing is one setting.
+
+| | |
+|---|---|
+| Sync server | `gc-ai-coo-central-sync`, Railway project `confident-happiness` |
+| Health | `GET /health` answers 200 — the service is up |
+| Endpoint | `/api/v1/procurement/latest`, which answers 401 without a token |
+| `GC_SYNC_URL` | **set**, 5 Sep 2026 |
+| `GC_SYNC_TOKEN` | **not set** — it is the service's `DASHBOARD_READ_TOKEN` |
+
+`acSnapshot_` appends `?datasets=items,supplierPrices&cost=include`, which is
+exactly what that route reads. The server defaults to withholding cost, so a
+reader that forgets the parameter under-shares rather than over-shares.
+
+Once the token is in, the next thing to check is whether a procurement snapshot
+has ever been uploaded — the route answers 404 *No procurement snapshot uploaded
+yet* until the Windows agent has run.
