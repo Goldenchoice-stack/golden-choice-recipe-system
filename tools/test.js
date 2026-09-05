@@ -901,8 +901,9 @@ group('Planning a rename, and refusing half of it');
      rows('note'), ['Espresso 16g', 'espresso (18G)']);
   eq('and only the real contradiction is refused', rows('refuse'), ['Espresso 20g']);
 
-  ok('grams beside millilitres is not a contradiction, it is two measurements',
-     /what goes in the cup[\s\S]*what it was made from/.test(p.note[1].why), p.note[1].why);
+  ok('grams beside millilitres is not a contradiction, it is two units',
+     /different units, so neither is the other and neither is wrong/.test(p.note[1].why),
+     p.note[1].why);
   ok('but the same unit twice is, and it is refused',
      /the same unit, two numbers/.test(p.refuse[0].why), p.refuse[0].why);
   ok('a recipe with a trial row gets the dose in the method too',
@@ -969,9 +970,11 @@ group('Planning a rename, and refusing half of it');
      'espresso (18G)>Espresso');
   eq('a rename is not a new version of the recipe',
      clog.filter(r => r[1] !== r[2]).length, 0);
-  ok('the dose that could not go anywhere else is written down here',
-     clog.some(r => /also carried 16 G/.test(r[9]) && /change log/.test(r[9])),
+  ok('the number that could not go anywhere else is written down here',
+     clog.some(r => /also carried 16 G/.test(r[9]) && /recorded here/.test(r[9])),
      clog.map(r => r[9]).join(' // '));
+  ok('and the record does not guess what that number meant',
+     clog.some(r => /may be the dose[\s\S]*or the pack it was bought in/.test(r[9])));
   ok('and the one that moved into the quantity column says so',
      clog.some(r => /22 G moved out of the name into the quantity column/.test(r[9])));
   ok('nothing refused is recorded as a change',
@@ -992,6 +995,65 @@ group('Planning a rename, and refusing half of it');
   eq('while the refusal still stands', ing(5), 'Espresso 20g');
   eq('and the change log is not written a second time',
      chg.getLastRow() - 1, 4);
+}
+
+group('Settling several groups in one run');
+{
+  const f = fx.build();
+  const row = (id, ing, qty, uom) =>
+    ['2026-08-01', id, 'R ' + id, ing, qty, uom, 'GC', 'Approved', '', 'V1.0'];
+  f.tabs[0].values = [fx.LOG_HEAD.slice(),
+    row('RCP-9401', 'Thai Tea 12G', '12', 'G'),
+    row('RCP-9402', 'Thai Tea (12G)', '', ''),
+    row('RCP-9403', 'Monin Rose Syrup 1L', '15', 'ML'),
+    row('RCP-9404', 'Da Hong Pao', '5', 'G'),
+    row('RCP-9405', 'Espresso 18G', '18', 'G'),
+    row('RCP-9406', 'Jasmine Tea (12g)', '250', 'ML'),
+    row('RCP-9407', 'JASMINE TEA', '12', 'G')];
+  f.tabs[2].values = [fx.TRIAL_HEAD.slice()];
+  const A = load(f, { now: NOW });
+  const R = A.ctx;
+
+  ok('the target is never longer than what it replaces', R.SPELLINGS.every(g =>
+     g.from.every(n => n.toLowerCase().indexOf(g.to.toLowerCase()) === 0)),
+     R.SPELLINGS.filter(g => g.from.some(n =>
+       n.toLowerCase().indexOf(g.to.toLowerCase()) !== 0)).map(g => g.to).join(', '));
+
+  const plan = R.spellingsPlan();
+  ok('the plan names every group', R.SPELLINGS.every(g => plan.indexOf(g.to) >= 0));
+  ok('and totals the rows', /6 row\(s\) would change, 0 refused/.test(plan),
+     plan.split('\n').filter(l => /would change/.test(l)).join(' | '));
+  ok('and writes nothing', String(A.ss.getSheetByName('R&D Log')
+     .getRange(2, 4).getValue()) === 'Thai Tea 12G');
+
+  const msg = R.spellingsApply();
+  const ing = i => String(A.ss.getSheetByName('R&D Log').getRange(i + 2, 4).getValue());
+  eq('the tea doses collapse to one name', ing(0) + '|' + ing(1), 'Thai Tea|Thai Tea');
+  eq('and the one with an empty quantity gains it',
+     String(A.ss.getSheetByName('R&D Log').getRange(3, 5).getValue()) + ' ' +
+     String(A.ss.getSheetByName('R&D Log').getRange(3, 6).getValue()), '12 G');
+  eq('a bottle size comes off the syrup name', ing(2), 'Monin Rose Syrup');
+  eq('and the pour it was measured in is untouched',
+     String(A.ss.getSheetByName('R&D Log').getRange(4, 5).getValue()), '15');
+  eq('a name already right is left alone', ing(3), 'Da Hong Pao');
+  eq('espresso is covered by the table too', ing(4), 'Espresso');
+  eq('and so is jasmine', ing(5) + '|' + ing(6), 'Jasmine Tea|Jasmine Tea');
+
+  ok('the summary says what happened, not what is left',
+     /6 row\(s\) changed, 0 refused/.test(msg), msg.split('\n\n')[1]);
+  ok('and it is one line per group, not ten full reports',
+     msg.split('\n').length < 40, String(msg.split('\n').length));
+
+  const chg = A.ss.getSheetByName('CHANGE LOG');
+  eq('every change is recorded once', chg.getLastRow() - 1, 6);
+  ok('including what the bottle size was, without guessing what it meant',
+     chg.getRange(2, 1, 6, 10).getValues().some(r =>
+       /also carried 1 L/.test(r[9]) && /may be the dose[\s\S]*or the pack/.test(r[9])),
+     chg.getRange(2, 1, 6, 10).getValues().map(r => r[9]).join(' // '));
+
+  const twice = R.spellingsApply();
+  ok('a second run changes nothing', /0 row\(s\) changed/.test(twice));
+  eq('and does not write the change log again', chg.getLastRow() - 1, 6);
 }
 
 group('The four pages are the tested copies');

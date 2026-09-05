@@ -17,15 +17,17 @@
  *   MOVE IT ACROSS     The name carries a dose and the quantity column is empty
  *                      or holds text. Rename, and write the dose into the
  *                      quantity and UOM columns where it belongs.
- *   WRITE IT DOWN      The name and the quantity column measure DIFFERENT THINGS.
- *                      "Espresso 18G" beside a quantity of 36 ML is not a
- *                      contradiction: 18 grams of ground coffee yields about 36
- *                      millilitres of espresso, and both numbers are true. The
- *                      volume stays in the quantity column where costing reads
- *                      it, and the dose is kept — in the recipe's PREPARATION
- *                      METHOD when it has a trial row, and in the CHANGE LOG
- *                      always. The live trial log holds 32 of 398 recipes, so
- *                      the change log is the one that can be relied on.
+ *   WRITE IT DOWN      The name and the quantity column are in DIFFERENT UNITS, so
+ *                      neither replaces the other. "Espresso 18G" beside 36 ML
+ *                      is 18 grams of coffee and the 36 millilitres it yields;
+ *                      "Monin Rose Syrup 1L" beside 15 ML is a bottle size and a
+ *                      pour. WHICH of those it is cannot be told from the text,
+ *                      and this does not guess: the quantity column keeps its
+ *                      number because costing reads it, and the number from the
+ *                      name is written down verbatim — in the recipe's
+ *                      PREPARATION METHOD when it has a trial row, and in the
+ *                      CHANGE LOG always. The live trial log holds 32 of 398
+ *                      recipes, so the change log is the one to rely on.
  *   REFUSED            The name and the quantity column give the SAME unit and
  *                      different numbers — a real contradiction, and only a
  *                      person knows which is right. Or the part being removed is
@@ -118,7 +120,11 @@ function renamePlan_(froms, to) {
                recipe: S_(vals[i][L.name]), from: name,
                qty: S_(vals[i][L.qty]), uom: S_(vals[i][L.uom]) };
 
-    if (key_(name) === key_(to)) { at.why = 'already the target spelling'; plan.nothing.push(at); continue; }
+    /* Exact, not case-blind. "JASMINE TEA" and "Jasmine Tea" are already one
+       ingredient to the price list, so rewriting one costs nothing — but leaving
+       both in the sheet means the log reads two ways for one thing, and the next
+       person to type a name copies whichever they saw. */
+    if (name === to) { at.why = 'already the target spelling'; plan.nothing.push(at); continue; }
 
     var extra = rnExtra_(name, to);
     if (extra === null) {
@@ -162,8 +168,9 @@ function renamePlan_(froms, to) {
              : have ? 'the change log — the trial log files ' + at.id + ' under ' +
                       have.join(', ') + ', not ' + at.ver
              : 'the change log — the trial log has no row for ' + at.id;
-    at.why = at.qty + ' ' + at.uom + ' is what goes in the cup, ' + dose.text +
-             ' is what it was made from; the quantity stays and the dose goes to ' + at.where;
+    at.why = 'the name says ' + dose.text + ' and the quantity column says ' + at.qty +
+             ' ' + at.uom + ' — different units, so neither is the other and neither is ' +
+             'wrong; the quantity stays and ' + dose.text + ' goes to ' + at.where;
     plan.note.push(at);
   }
   return plan;
@@ -237,7 +244,7 @@ function rnChange_(a, to, remark) {
  * a row in the CHANGE LOG, so what happened is in the spreadsheet and not only
  * in this report.
  */
-function renameApply_(froms, to) {
+function renameApply_(froms, to, quiet) {
   var plan = renamePlan_(froms, to), L = LOGCOLS_(), sh = sheetByGid_(GID.log);
   var T = TRIALCOLS_(), ts = sheetByGid_(GID.trial), changes = [], done = {}, i, a;
 
@@ -270,9 +277,11 @@ function renameApply_(froms, to) {
       if (was.indexOf(a.note) < 0)
         cell.setValue(was ? was.replace(/\s+$/, '') + ' ' + a.note : a.note);
     }
-    changes.push(rnChange_(a, to, 'The name also carried ' + a.dose + '. The quantity ' +
-      'column keeps ' + a.qty + ' ' + a.uom + ', which is what goes in the cup; ' + a.dose +
-      ' is what it was made from. Kept in ' + a.where + '.'));
+    changes.push(rnChange_(a, to, 'The name also carried ' + a.dose + ', which the ' +
+      'quantity column does not record — it says ' + a.qty + ' ' + a.uom + ', a different ' +
+      'unit, and keeps it. What ' + a.dose + ' refers to is not written down anywhere: it ' +
+      'may be the dose the ingredient was made from, or the pack it was bought in. It is ' +
+      'recorded here because taking it out of the name would otherwise lose it.'));
   }
 
   if (changes.length) {
@@ -281,15 +290,108 @@ function renameApply_(froms, to) {
   }
 
   var msg = rnReport_(plan, true);
+  /* Ten of these would push the batch summary off the top of the log. */
+  if (!quiet) Logger.log(msg);
+  return msg;
+}
+
+/* ------------------------------------------------------------- the spellings */
+
+/**
+ * The groups findLikeNames() found on the live sheet, with the spelling to keep.
+ * Written out rather than derived, because renaming is the one thing here that
+ * changes the recipes: what it touches should be reviewable in one screen.
+ *
+ * THE TARGET MUST BE THE SHORTER NAME. A rename only ever takes text off the end
+ * — going the other way would mean asserting that a row nobody labelled came out
+ * of a 1L bottle, which is inventing a fact about a purchase.
+ *
+ * Not listed, because a rule cannot pick the target and a person must:
+ *   Flavored Syrup Ice 1.08kg - Ice Syrup / Flavoured Syrup Ice   neither name
+ *     contains the other, and the longer one repeats "Ice Syrup" after a dash.
+ *   Matcha Premium / Matcha (Premium)   the bracket is in the middle.
+ *   Cheese Cap (1:3) / Cheese Cap / Original Cheese Cap   a ratio, and a word on
+ *     the front rather than the end.
+ */
+var SPELLINGS = [
+  { to: 'Espresso',
+    from: ['Espresso 18G', 'Espresso (22g)', 'Espresso 22g', 'Espresso 16g',
+           'espresso (18G)'] },
+  { to: 'Zonefor Chun Jian Long Jing Green Tea 50g',
+    from: ['Zonefor Chun Jian Long Jing Green Tea 50g (10G)'] },
+  { to: 'Thai Green Tea',  from: ['Thai Green Tea (12G)'] },
+  { to: 'Monin Rose Syrup',    from: ['Monin Rose Syrup 1L'] },
+  { to: 'Monin Vanilla Syrup', from: ['Monin Vanilla Syrup 1L'] },
+  { to: 'Thai Tea',        from: ['Thai Tea 12G', 'Thai Tea (12G)'] },
+  { to: 'Jasmine Tea',     from: ['JASMINE TEA', 'Jasmine Tea (12g)'] },
+  { to: 'Thai Green',      from: ['Thai Green (12G)'] },
+  { to: 'Thai Black Tea',  from: ['Thai Black Tea (12G)'] },
+  { to: 'Da Hong Pao',     from: ['DA HONG PAO ( 15G )'] }
+];
+
+/**
+ * One line per group and every refusal in full, because the summary is what is
+ * read and the refusals are the only part anybody has to act on. Printing all
+ * of it would run past the log limit and lose the end.
+ */
+function spellingsReport_(plans, applied) {
+  var out = [applied ? 'SPELLINGS SETTLED' : 'SPELLINGS — PLAN, NOTHING WRITTEN', ''];
+  var wrote = 0, refused = 0, i, j, wide = 0;
+  for (i = 0; i < plans.length; i++) wide = Math.max(wide, plans[i].to.length);
+  for (i = 0; i < plans.length; i++) {
+    var p = plans[i], n = p.rename.length + p.move.length + p.note.length;
+    wrote += n; refused += p.refuse.length;
+    var pad = p.to;
+    while (pad.length < wide) pad += ' ';
+    out.push('   ' + pad + '   ' + (n ? n + (applied ? ' changed' : ' to change') : 'nothing to do') +
+             (p.refuse.length ? ', ' + p.refuse.length + ' refused' : '') +
+             (p.nothing.length ? ', ' + p.nothing.length + ' already right' : ''));
+  }
+  out.push('');
+  out.push('   ' + wrote + ' row(s) ' + (applied ? 'changed' : 'would change') + ', ' +
+           refused + ' refused.');
+  out.push('');
+  for (i = 0; i < plans.length; i++) {
+    if (!plans[i].refuse.length) continue;
+    out.push(rnList_('REFUSED — ' + plans[i].to, plans[i].refuse));
+  }
+  if (!refused) out.push('   Nothing was refused.');
+  out.push('');
+  out.push(applied
+    ? '   Every change is a row in the CHANGE LOG with its old value. Run seedPrices()\n' +
+      '   so the Prices tab drops the spellings that no longer exist, then\n' +
+      '   findLikeNames() to see what is left.'
+    : '   Nothing above has been written. Run spellingsApply() to do it.');
+  return out.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+function spellingsPlan() {
+  var plans = [], i;
+  for (i = 0; i < SPELLINGS.length; i++)
+    plans.push(renamePlan_(SPELLINGS[i].from.concat([SPELLINGS[i].to]), SPELLINGS[i].to));
+  var msg = spellingsReport_(plans, false);
+  Logger.log(msg);
+  return msg;
+}
+
+function spellingsApply() {
+  var plans = [], i;
+  for (i = 0; i < SPELLINGS.length; i++) {
+    var list = SPELLINGS[i].from.concat([SPELLINGS[i].to]);
+    /* Planned before the write, so the summary says what happened rather than
+       what is left, which after a successful run is nothing. */
+    plans.push(renamePlan_(list, SPELLINGS[i].to));
+    renameApply_(list, SPELLINGS[i].to, true);
+  }
+  var msg = spellingsReport_(plans, true);
   Logger.log(msg);
   return msg;
 }
 
 /* ------------------------------------------------------------------ Espresso */
 
-/* The six spellings findLikeNames() found on 5 Sep 2026, and the one they mean.
-   Listed rather than matched by a rule: renaming is the one thing here that
-   changes the recipes, so what it touches is written down and reviewable. */
+/* Kept because the README names them, and because one group at a time is the
+   safer way in when a new group is added to the table above. */
 var ESPRESSO = ['Espresso', 'Espresso 18G', 'Espresso (22g)', 'Espresso 22g',
                 'Espresso 16g', 'espresso (18G)'];
 
