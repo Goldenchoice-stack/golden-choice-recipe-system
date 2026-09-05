@@ -17,11 +17,21 @@
  *   MOVE IT ACROSS     The name carries a dose and the quantity column is empty
  *                      or holds text. Rename, and write the dose into the
  *                      quantity and UOM columns where it belongs.
- *   REFUSED            Anything else. The name carries a dose and the quantity
- *                      column holds a DIFFERENT number — two measurements
- *                      disagree and only a person knows which is right. Or the
- *                      part being removed is not a dose at all: "Cheese Cap
- *                      (1:3)" is a ratio and "Original Cheese Cap" is a word.
+ *   WRITE IT DOWN      The name and the quantity column measure DIFFERENT THINGS.
+ *                      "Espresso 18G" beside a quantity of 36 ML is not a
+ *                      contradiction: 18 grams of ground coffee yields about 36
+ *                      millilitres of espresso, and both numbers are true. The
+ *                      volume stays in the quantity column where costing reads
+ *                      it, and the dose is written into the recipe's PREPARATION
+ *                      METHOD, which is where a brewing parameter belongs and
+ *                      where somebody will actually see it.
+ *   REFUSED            Anything else. The name and the quantity column give the
+ *                      SAME unit and different numbers — a real contradiction,
+ *                      and only a person knows which is right. Or the part being
+ *                      removed is not a dose at all: "Cheese Cap (1:3)" is a
+ *                      ratio and "Original Cheese Cap" is a word. Or the recipe
+ *                      has no trial row to write the dose into, so keeping it is
+ *                      impossible.
  *
  * A refused row is left exactly as it was and named in the report. Nothing is
  * ever renamed by guessing what the extra text meant.
@@ -78,7 +88,12 @@ function renamePlan_(froms, to) {
 
   var n = sh.getLastRow();
   var vals = n < 2 ? [] : sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
-  var plan = { to: to, rename: [], move: [], nothing: [], refuse: [], rows: 0 };
+  var T = TRIALCOLS_(), trial = {}, tr = rows_(GID.trial);
+  for (i = 0; i < tr.length; i++) {
+    var tid = cell_(tr[i], T.id);
+    if (tid) trial[tid + '|' + (cell_(tr[i], T.ver) || 'V1.0')] = i + 2;   /* its sheet row */
+  }
+  var plan = { to: to, rename: [], move: [], note: [], nothing: [], refuse: [], rows: 0 };
 
   for (i = 0; i < vals.length; i++) {
     var name = S_(vals[i][L.ing]);
@@ -117,10 +132,26 @@ function renamePlan_(froms, to) {
                ', so ' + dose.text + ' moves into it';
       plan.move.push(at); continue;
     }
-    at.why = 'the name says ' + dose.text + ' and the quantity column says ' +
-             at.qty + ' ' + (at.uom || '(no unit)') + ' — two measurements, and only a ' +
-             'person knows which is right';
-    plan.refuse.push(at);
+    if (sameUnit) {
+      at.why = 'the name says ' + dose.text + ' and the quantity column says ' +
+               at.qty + ' ' + at.uom + ' — the same unit, two numbers, and only a ' +
+               'person knows which is right';
+      plan.refuse.push(at); continue;
+    }
+    /* Different units measure different things, and grams never become
+       millilitres, so neither number is wrong. Keep the volume where costing
+       reads it and write the dose where somebody will see it. */
+    at.trial = trial[at.id + '|' + at.ver];
+    at.note = to + ' dose: ' + dose.text + '.';
+    if (!at.trial || T.method < 0) {
+      at.why = 'the name says ' + dose.text + ' beside ' + at.qty + ' ' + at.uom +
+               ', and there is no trial row to write the dose into, so removing it ' +
+               'from the name would lose it';
+      plan.refuse.push(at); continue;
+    }
+    at.why = at.qty + ' ' + at.uom + ' is what goes in the cup, ' + dose.text +
+             ' is what it was made from; the quantity stays and the dose goes to the method';
+    plan.note.push(at);
   }
   return plan;
 }
@@ -145,13 +176,16 @@ function rnReport_(plan, applied) {
   out.push('   Target spelling: "' + plan.to + '"');
   out.push('   ' + plan.rows + ' row(s) carry one of the old spellings.');
   out.push('   ' + plan.rename.length + ' rename cleanly, ' + plan.move.length +
-           ' also need a dose moved into the quantity column, ' +
-           plan.refuse.length + ' refused.');
+           ' also move a dose into the quantity column, ' + plan.note.length +
+           ' also write a dose into the method, ' + plan.refuse.length + ' refused.');
   out.push('');
   out.push(rnList_(applied ? 'RENAMED' : 'WOULD RENAME', plan.rename));
   out.push(rnList_(applied ? 'RENAMED, AND THE DOSE MOVED ACROSS' : 'WOULD RENAME AND MOVE THE DOSE',
                    plan.move,
                    'The quantity column is where a measurement belongs; the name was repeating it.'));
+  out.push(rnList_(applied ? 'RENAMED, AND THE DOSE WRITTEN INTO THE METHOD'
+                          : 'WOULD RENAME AND WRITE THE DOSE INTO THE METHOD', plan.note,
+                   'The two numbers measure different things, so both are kept.'));
   out.push(rnList_('LEFT ALONE', plan.nothing));
   out.push(rnList_('REFUSED — not touched, and still needs a person', plan.refuse));
   if (!applied) {
@@ -179,6 +213,21 @@ function renameApply_(froms, to) {
     sh.getRange(m.row, L.ing + 1).setValue(to);
     sh.getRange(m.row, L.qty + 1).setValue(d.qty);
     if (L.uom >= 0) sh.getRange(m.row, L.uom + 1).setValue(d.unit);
+  }
+  /* The method cell is appended to, never replaced, and only when it does not
+     already say this — two log rows for one recipe must not write it twice. */
+  if (plan.note.length) {
+    var ts = sheetByGid_(GID.trial), T = TRIALCOLS_(), done = {};
+    for (i = 0; i < plan.note.length; i++) {
+      var a = plan.note[i];
+      sh.getRange(a.row, L.ing + 1).setValue(to);
+      var mark = a.trial + '|' + a.note;
+      if (done[mark]) continue;
+      done[mark] = 1;
+      var cell = ts.getRange(a.trial, T.method + 1), was = S_(cell.getValue());
+      if (was.indexOf(a.note) >= 0) continue;
+      cell.setValue(was ? was.replace(/\s+$/, '') + ' ' + a.note : a.note);
+    }
   }
   var msg = rnReport_(plan, true);
   Logger.log(msg);

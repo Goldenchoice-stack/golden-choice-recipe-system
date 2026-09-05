@@ -73,6 +73,7 @@ class Range {
       for (let c = 0; c < v[r].length; c++) this.sheet._set(this.row + r, this.col + c, v[r][c]);
     return this;
   }
+  getValue() { return this.sheet._get(this.row, this.col); }
   setValue(v) { this.sheet._set(this.row, this.col, v); return this; }
   setFontWeight() { return this; }
   setNumberFormat() { return this; }

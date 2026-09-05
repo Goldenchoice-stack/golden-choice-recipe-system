@@ -863,31 +863,49 @@ group('Planning a rename, and refusing half of it');
   const f = fx.build();
   const row = (id, ing, qty, uom) =>
     ['2026-08-01', id, 'R ' + id, ing, qty, uom, 'GC', 'Approved', '', 'V1.0'];
-  f.tabs[0].values = [fx.LOG_HEAD.slice(), 
+  f.tabs[0].values = [fx.LOG_HEAD.slice(),
     row('RCP-9201', 'Espresso', '30', 'ML'),
     row('RCP-9202', 'Espresso 18G', '18', 'G'),
     row('RCP-9203', 'Espresso (22g)', '', ''),
     row('RCP-9204', 'Espresso 16g', '30', 'ML'),
-    row('RCP-9205', 'espresso (18G)', 'follow powder', 'G'),
-    row('RCP-9206', 'Cheese Cap (1:3)', '40', 'ML'),
-    row('RCP-9207', 'Original Cheese Cap', '40', 'ML')];
+    row('RCP-9205', 'espresso (18G)', '30', 'ML'),
+    row('RCP-9206', 'Espresso 20g', '25', 'G'),
+    row('RCP-9207', 'Cheese Cap (1:3)', '40', 'ML'),
+    row('RCP-9208', 'Original Cheese Cap', '40', 'ML')];
+  /* A trial row is where a dose goes when the quantity column is measuring
+     something else. RCP-9204 deliberately has none. */
+  const trial = (id, method) => {
+    const r = new Array(fx.TRIAL_HEAD.length).fill('');
+    r[1] = id; r[3] = 'V1.0'; r[20] = method;
+    return r;
+  };
+  f.tabs[2].values = [fx.TRIAL_HEAD.slice(),
+    trial('RCP-9205', 'Pull the shot, top with milk.'),
+    trial('RCP-9206', '')];
+
   const A = load(f, { now: NOW });
   const R = A.ctx;
-  const p = R.renamePlan_(R.ESPRESSO, 'Espresso');
+  const LIST = R.ESPRESSO.concat(['Espresso 20g']);
+  const p = R.renamePlan_(LIST, 'Espresso');
   const rows = g => p[g].map(x => x.from);
 
-  eq('every row carrying an old spelling is found', p.rows, 5);
+  eq('every row carrying an old spelling is found', p.rows, 6);
   eq('the one already spelt right is left alone', rows('nothing'), ['Espresso']);
   eq('a dose the quantity column already records is only a rename',
      rows('rename'), ['Espresso 18G']);
-  eq('a dose with nowhere recorded is moved across',
-     rows('move'), ['Espresso (22g)', 'espresso (18G)']);
-  eq('and a dose that contradicts the quantity column is refused',
-     rows('refuse'), ['Espresso 16g']);
-  ok('the refusal says what the two numbers were',
-     /name says 16 G and the quantity column says 30 ML/.test(p.refuse[0].why), p.refuse[0].why);
+  eq('a dose with nowhere recorded is moved into the quantity column',
+     rows('move'), ['Espresso (22g)']);
+  eq('a dose measuring something else is written into the method instead',
+     rows('note'), ['espresso (18G)']);
+  eq('and two refused', rows('refuse'), ['Espresso 16g', 'Espresso 20g']);
 
-  /* Not a dose at all. */
+  ok('grams beside millilitres is not a contradiction, it is two measurements',
+     /what goes in the cup[\s\S]*what it was made from/.test(p.note[0].why), p.note[0].why);
+  ok('but the same unit twice is, and it is refused',
+     /the same unit, two numbers/.test(p.refuse[1].why), p.refuse[1].why);
+  ok('and a dose with nowhere to go is refused rather than dropped',
+     /no trial row to write the dose into/.test(p.refuse[0].why), p.refuse[0].why);
+
   const q = R.renamePlan_(['Cheese Cap (1:3)', 'Original Cheese Cap'], 'Cheese Cap');
   eq('a ratio in the name is refused, not dropped', q.refuse.length, 2);
   ok('because it is not a measurement', /not a measurement/.test(q.refuse[0].why));
@@ -895,36 +913,48 @@ group('Planning a rename, and refusing half of it');
      /something other than a dose differs/.test(q.refuse[1].why));
 
   ok('planning writes nothing at all', A.ss.getSheetByName('R&D Log')
-     .getRange(2, 4, 7, 1).getValues().map(r => r[0]).join('|') ===
-     'Espresso|Espresso 18G|Espresso (22g)|Espresso 16g|espresso (18G)|Cheese Cap (1:3)|Original Cheese Cap');
+     .getRange(2, 4, 8, 1).getValues().map(r => r[0]).join('|') ===
+     'Espresso|Espresso 18G|Espresso (22g)|Espresso 16g|espresso (18G)|Espresso 20g|' +
+     'Cheese Cap (1:3)|Original Cheese Cap');
 
   group('Applying it');
-  const msg = R.renameApply_(R.ESPRESSO, 'Espresso');
+  const msg = R.renameApply_(LIST, 'Espresso');
   const sh = A.ss.getSheetByName('R&D Log');
-  const after = sh.getRange(2, 1, 7, 10).getValues();
+  const after = sh.getRange(2, 1, 8, 10).getValues();
   const ing = i => String(after[i][3]), qty = i => String(after[i][4]), uom = i => String(after[i][5]);
+  const ts = A.ss.getSheetByName('R&D TRIAL LOG');
+  const method = i => String(ts.getRange(2, 1, 2, fx.TRIAL_HEAD.length).getValues()[i][20]);
 
   eq('the row that already recorded its dose is now plain', ing(1), 'Espresso');
   eq('and its quantity is untouched', qty(1) + ' ' + uom(1), '18 G');
   eq('the empty one is renamed', ing(2), 'Espresso');
   eq('and the dose moved into the quantity column', qty(2) + ' ' + uom(2), '22 G');
-  eq('so is the one whose quantity was text', ing(4), 'Espresso');
-  eq('and the text it replaced was not a number anyway', qty(4) + ' ' + uom(4), '18 G');
-  eq('the contradicting row is left exactly as it was', ing(3), 'Espresso 16g');
+
+  eq('the one measuring two things is renamed', ing(4), 'Espresso');
+  eq('and keeps the volume costing reads', qty(4) + ' ' + uom(4), '30 ML');
+  eq('while the dose is appended to the method, not replacing it',
+     method(0), 'Pull the shot, top with milk. Espresso dose: 18 G.');
+
+  eq('the row with nowhere to keep its dose is left exactly as it was', ing(3), 'Espresso 16g');
   eq('with its quantity untouched too', qty(3) + ' ' + uom(3), '30 ML');
-  eq('and nothing outside the list is touched', ing(5) + '|' + ing(6),
+  eq('so is the contradicting one', ing(5), 'Espresso 20g');
+  eq('and its method is left empty rather than given a number', method(1), '');
+  eq('and nothing outside the list is touched', ing(6) + '|' + ing(7),
      'Cheese Cap (1:3)|Original Cheese Cap');
 
   ok('the report prints the old value of every row it wrote',
      /Espresso \(22g\)/.test(msg) && /espresso \(18G\)/.test(msg));
-  ok('and says the refused one still needs a person',
+  ok('and says the refused ones still need a person',
      /REFUSED[\s\S]*Espresso 16g/.test(msg));
   ok('it points at the sheet history for a real undo', /Version history/.test(msg));
 
-  /* Running it twice must find nothing left to do. */
-  const again = R.renamePlan_(R.ESPRESSO, 'Espresso');
-  eq('a second run renames nothing', again.rename.length + again.move.length, 0);
-  eq('and still refuses the one it refused', again.refuse.length, 1);
+  /* Running it twice must find nothing left to do, and must not write the note
+     into the method a second time. */
+  const again = R.renameApply_(LIST, 'Espresso');
+  ok('a second run renames nothing', /0 rename cleanly, 0 also move/.test(again), again.slice(0, 300));
+  eq('and the method is not doubled up',
+     method(0), 'Pull the shot, top with milk. Espresso dose: 18 G.');
+  eq('while the two refusals still stand', ing(3) + '|' + ing(5), 'Espresso 16g|Espresso 20g');
 }
 
 group('The four pages are the tested copies');
