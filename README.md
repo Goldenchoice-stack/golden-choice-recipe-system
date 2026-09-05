@@ -714,6 +714,10 @@ today it finds, out of 441 names across 398 recipes:
 * **6 cells holding a choice rather than an ingredient.**
 * **239 further pairs** worth a look.
 
+**Ten of those groups are now settled** — see *The spellings are settled* below.
+As of 5 Sep 2026 the same run reports **427 names, 5 groups, 53 recipe-slots** on
+a split spelling.
+
 Settling a group does not cost a drink by itself — nothing does until a real
 price is typed. It means **one price to type instead of several**, and no recipe
 left behind on the other spelling.
@@ -753,7 +757,43 @@ two different numbers. Every other espresso row measures the yield in ML, so the
 UOM is probably wrong, but "probably" is not good enough to overwrite a recipe.
 
 Renaming is done by plan first: `espressoPlan()` writes nothing and prints
-exactly what would change. Use the same pair for the next group.
+exactly what would change.
+
+### The spellings are settled — 5 Sep 2026
+
+`spellingsApply()` in `Rename.gs` then did nine more groups in one run: **28 rows
+changed, 1 refused**. The table it works from is at the bottom of that file, with
+the spelling kept for each group and a note on the ones deliberately left out.
+
+| | before | after |
+|---|---|---|
+| distinct ingredient names | 441 | **427** |
+| groups spelt more than one way | 14 | **5** |
+| recipe-slots in a split group | 307 | 253 |
+| …of those, on a spelling with no price | 107 | **53** |
+| further pairs to look at | 239 | 200 |
+
+**A rename only ever takes text off the end.** Going the other way — renaming
+`Monin Rose Syrup` up to `Monin Rose Syrup 1L` — would assert that a row nobody
+labelled came out of a 1L bottle, which is inventing a fact about a purchase.
+That is a rule with a test, not a habit.
+
+Every change is a row in the **CHANGE LOG** with the old name, the new one, and
+what happened to any number that was in the name. Where the name and the quantity
+column were in different units the quantity is kept, because costing reads it,
+and the number from the name is recorded verbatim — **without saying what it
+meant**, because nothing in the text distinguishes `Espresso 18G` (a dose) from
+`Monin Rose Syrup 1L` (a bottle).
+
+**The five groups left all need a person, and here is each one:**
+
+| Group | Why a rule cannot do it |
+|---|---|
+| `Espresso` / `Espresso (18G)` | RCP-0393 reads 18 G in the name beside **36 G** in the quantity — same unit, two numbers |
+| `Flavored Syrup Ice 1.08kg – Ice Syrup` / `Flavoured Syrup Ice` | Neither name contains the other, and the longer repeats *Ice Syrup* after a dash |
+| `Matcha Premium` / `Matcha (Premium)` | The bracket is in the middle, not on the end |
+| `Cheese Cap (1:3)` / `Cheese Cap` / `Original Cheese Cap` | A ratio, and a word on the front |
+| `Ice` / `Ice (280+ 100)` | Real, but both are already priced at 0 over 1, so it buys nothing |
 
 The six cells holding a choice are `Soda Water/Water`, `Soda Water/ Water`,
 `Fructose/ White Sugar`, `Marie Biscuit/ Roti Kok (middle)`,

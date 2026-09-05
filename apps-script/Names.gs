@@ -1,8 +1,8 @@
 /**
  * Golden Choice — the same ingredient written two ways.
  *
- * 441 ingredients have to be priced by hand, and the price list is joined to
- * the recipes by the NAME, lower-cased and trimmed and nothing else. So
+ * Several hundred ingredients have to be priced by hand, and the price list is
+ * joined to the recipes by the NAME, lower-cased and trimmed and nothing else. So
  * "Flavored Syrup Ice" and "Flavoured Syrup Ice" are two ingredients, two rows
  * to price, and — this is the expensive part — pricing one of them leaves every
  * recipe that used the other spelling still uncosted, with nothing on screen to
