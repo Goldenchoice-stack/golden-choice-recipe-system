@@ -287,7 +287,7 @@ function load(fixture, opts) {
 
   vm.createContext(ctx);
   const dir = path.join(__dirname, '..', 'apps-script');
-  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs', 'Autocount.gs', 'Secrets.gs', 'PagesData.gs', 'Pages.gs', 'Run.gs', 'LiveTest.gs', 'PicFix.gs', 'Find.gs', 'Cleanup.gs', 'Repair.gs', 'Prices.gs', 'Free.gs', 'Names.gs', 'Rename.gs']) {
+  for (const f of ['Code.gs', 'Fixer.gs', 'Web.gs', 'Autocount.gs', 'Secrets.gs', 'PagesData.gs', 'Pages.gs', 'Run.gs', 'LiveTest.gs', 'PicFix.gs', 'Find.gs', 'Cleanup.gs', 'Repair.gs', 'Prices.gs', 'Free.gs', 'Names.gs', 'Rename.gs', 'Token.gs']) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     /* Two files cannot both answer doGet. The deployment renames Code.gs's to
        connectorStatus_(), and the repository copy already carries that rename
@@ -317,7 +317,9 @@ function load(fixture, opts) {
     ctx.USERS = JSON.parse(JSON.stringify(ctx.USER_SHAPE));
   }
 
-  return { ctx, ss, drive, folder };
+  /* The Script Properties the run left behind, so a test can assert what was
+     stored as well as what was reported. */
+  return { ctx, ss, drive, folder, get props() { return opts.properties || {}; } };
 }
 
 module.exports = { load, Sheet, Spreadsheet, formatDate };

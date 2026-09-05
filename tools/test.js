@@ -1123,6 +1123,88 @@ group('Settling several groups in one run');
   eq('and does not write the change log again', chg.getLastRow() - 1, 6);
 }
 
+/* ============================================== storing the AutoCount token */
+/**
+ * The Script Properties form lost this row three times without saying so. The
+ * point of doing it in code is that it can answer "did it work" — so the tests
+ * are mostly about refusing to store a token that has not been proved, and about
+ * never letting the token itself into a message.
+ */
+group('Saving the sync token');
+{
+  const SECRET = 'tok-live-9f3a-do-not-leak';
+  const mk = (opts) => load(fx.build({ withPrices: false }), Object.assign({
+    now: NOW,
+    properties: { GC_SYNC_URL: 'https://sync.test/api/v1/procurement/latest' }
+  }, opts));
+
+  /* Nothing pasted yet. */
+  {
+    const A = mk({ fetch: () => { throw new Error('must not be called'); } });
+    const r = A.ctx.saveSyncToken();
+    ok('an unpasted placeholder is refused', /^NOT SAVED/.test(r), r);
+    ok('and says where to paste', /PASTE_SYNC_TOKEN/.test(r));
+    ok('and nothing is stored', !A.props.GC_SYNC_TOKEN);
+  }
+
+  /* No URL to test against. */
+  {
+    const A = load(fx.build({ withPrices: false }), { now: NOW, properties: {} });
+    A.ctx.PASTE_SYNC_TOKEN = SECRET;
+    const r = A.ctx.saveSyncToken();
+    ok('without a URL there is nothing to prove the token against', /^NOT SAVED/.test(r));
+    ok('and it names the missing setting', /GC_SYNC_URL/.test(r));
+  }
+
+  /* The server refuses it. */
+  {
+    const A = mk({ fetch: () => ({ code: 401, body: { error: 'Unauthorized' } }) });
+    A.ctx.PASTE_SYNC_TOKEN = SECRET;
+    const r = A.ctx.saveSyncToken();
+    ok('a rejected token is not stored', !A.props.GC_SYNC_TOKEN);
+    ok('and the refusal is reported as a refusal', /refused that token \(401\)/.test(r), r);
+    ok('and the token is not echoed back', r.indexOf(SECRET) < 0);
+  }
+
+  /* The server answers, but with an empty snapshot. */
+  {
+    const A = mk({ fetch: () => ({ code: 200, body: { items: [], supplierPrices: [] } }) });
+    A.ctx.PASTE_SYNC_TOKEN = SECRET;
+    const r = A.ctx.saveSyncToken();
+    ok('a working token over an empty snapshot is still not stored',
+       !A.props.GC_SYNC_TOKEN);
+    ok('and it says the refresh would price nothing', /would price nothing/.test(r), r);
+  }
+
+  /* It works. */
+  {
+    let sent = null;
+    const A = mk({ fetch: (url, params) => {
+      sent = { url, params };
+      return { code: 200, body: { items: [{ ItemCode: 'A' }, { ItemCode: 'B' }],
+                                  supplierPrices: [{ ItemCode: 'A' }] } };
+    } });
+    A.ctx.PASTE_SYNC_TOKEN = SECRET;
+    const r = A.ctx.saveSyncToken();
+    eq('a proved token is stored', A.props.GC_SYNC_TOKEN, SECRET);
+    ok('it is sent as a bearer token', sent.params.headers.Authorization === 'Bearer ' + SECRET);
+    ok('and it asks for both datasets with cost',
+       /datasets=items,supplierPrices&cost=include/.test(sent.url), sent.url);
+    ok('the report says what came back', /2 items and 1 supplier prices/.test(r), r);
+    ok('but never the token itself', r.indexOf(SECRET) < 0);
+    ok('and it insists the constant is put back', /PUT PASTE-THE-TOKEN-HERE BACK/.test(r));
+
+    /* And afterwards, the checker notices a token left behind in the file. */
+    const left = A.ctx.checkSyncToken();
+    ok('a token left in the file is called out', /still holds a token/.test(left), left);
+    ok('without printing it', left.indexOf(SECRET) < 0);
+    A.ctx.PASTE_SYNC_TOKEN = 'PASTE-THE-TOKEN-HERE';
+    const clean = A.ctx.checkSyncToken();
+    ok('and once put back, the warning goes', !/still holds a token/.test(clean));
+    ok('while still confirming the stored token works', /token works/.test(clean), clean);
+  }
+}
+
 group('The four pages are the tested copies');
 for (const [name, want] of Object.entries(ctx.PAGE_FINGERPRINTS)) {
   const buf = fs.readFileSync(path.join(__dirname, '..', 'pages', name));
