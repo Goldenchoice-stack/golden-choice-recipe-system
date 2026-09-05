@@ -127,8 +127,10 @@ class Sheet {
 }
 
 class Spreadsheet {
-  constructor(name, sheets) { this.name = name; this.sheets = sheets; }
+  constructor(name, sheets, id) { this.name = name; this.sheets = sheets; this.id = id; }
   getName() { return this.name; }
+  /* preflight reports this so a run identifies its own environment. */
+  getId() { return this.id || 'SPREADSHEET-ID-UNDER-TEST'; }
   getSheets() { return this.sheets; }
   getSheetByName(n) { return this.sheets.find(s => s.name === n) || null; }
   getSpreadsheetTimeZone() { return TZ; }
@@ -149,7 +151,7 @@ function load(fixture, opts) {
   const logs = [];
   opts = opts || {};
   const ss = new Spreadsheet(fixture.name || 'R&D Log',
-    fixture.tabs.map(t => new Sheet(t.name, t.gid, t.values)));
+    fixture.tabs.map(t => new Sheet(t.name, t.gid, t.values)), opts.spreadsheetId);
 
   /* Drive is a directory on this disk: the same four page files the deployment
      reads, so a fingerprint check here means what it means there. */
