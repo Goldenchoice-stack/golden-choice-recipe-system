@@ -1145,6 +1145,21 @@ function preflight() {
   function no_(m)   { out.push('  WRONG ' + m); bad++; }
   function note_(m) { out.push('  note  ' + m); warn++; }
 
+  /* WHICH COPY AM I. There are two Apps Script projects of this system under two
+     Google accounts, and they are indistinguishable from inside the editor. Five
+     rounds of "it is saved" / "it is not there" came of that, because no report
+     said where it had been run. Every preflight now says so first, so any
+     screenshot of one identifies its own environment. */
+  out.push('WHERE THIS RAN');
+  try { out.push('  script      ' + ScriptApp.getScriptId()); }
+  catch (e) { out.push('  script      (unavailable)'); }
+  try {
+    var ss_here = SpreadsheetApp.getActive();
+    out.push('  spreadsheet ' + ss_here.getId());
+    out.push('  named       ' + ss_here.getName());
+  } catch (e2) { out.push('  spreadsheet (unavailable)'); }
+  out.push('');
+
   out.push('SECRETS');
   /* A placeholder is any value still carrying the shape this repository ships. */
   var isPlaceholder = function (v) { return /^PASTE-/.test(String(v || '')); };

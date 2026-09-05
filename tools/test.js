@@ -633,6 +633,15 @@ group('The preflight check, which is what stands between a paste and a broken si
      /cannot be a SHA-256/.test(short.ctx.preflight()));
 
   /* No Prices tab is the state the live sheet is in today: a note, not a fault. */
+  /* Two indistinguishable copies of this project exist. A report that does not
+     say where it ran cannot be trusted to be about the thing you are looking at. */
+  {
+    const w = load(fx.build(), { now: NOW, scriptId: 'THE-LIVE-PROJECT-ID' }).ctx.preflight();
+    ok('preflight says which script it ran in', /script      THE-LIVE-PROJECT-ID/.test(w),
+       w.split('\n').slice(0, 6).join(' | '));
+    ok('and which spreadsheet', /spreadsheet [A-Za-z0-9_-]+/.test(w));
+    ok('naming it, so a person can recognise it', /named       /.test(w));
+  }
   const noPrices = load(fx.build({ withPrices: false }), { now: NOW, properties: {} }).ctx.preflight();
   ok('having no price list yet does not block the deploy', /READY to deploy/.test(noPrices));
   ok('but is said out loud', /no Prices tab yet/.test(noPrices));
