@@ -1130,6 +1130,84 @@ group('Settling several groups in one run');
  * are mostly about refusing to store a token that has not been proved, and about
  * never letting the token itself into a message.
  */
+/* ============================ setting the token from the spreadsheet's own menu */
+/**
+ * Four attempts to save this token succeeded — in the other Apps Script copy.
+ * Both copies look identical from inside the editor, so the fix is not a better
+ * instruction, it is a different door: a menu served by the script BOUND to the
+ * live sheet. Open the sheet by its id and there is no copy to land in.
+ *
+ * The tests that matter are the ones about what the token must never touch.
+ */
+group('Set GC Sync Token, from the sheet menu');
+{
+  const SECRET = 'tok-live-7c21-must-never-appear';
+  const mk = (opts) => load(fx.build({ withPrices: false }), Object.assign({
+    now: NOW, scriptId: 'THE-LIVE-PROJECT-ID',
+    properties: { GC_SYNC_URL: 'https://sync.test/api/v1/procurement/latest' }
+  }, opts));
+
+  const good = { code: 200, body: { items: [{ ItemCode: 'A' }, { ItemCode: 'B' }],
+                                    supplierPrices: [{ ItemCode: 'A' }] } };
+
+  /* Every refusal, and never the token in any of them. */
+  const refusals = [
+    ['no URL to check against', load(fx.build({ withPrices: false }),
+       { now: NOW, properties: {} }), SECRET, /GC_SYNC_URL is not set/],
+    ['nothing pasted',          mk({ fetch: () => good }), '   ',  /Nothing was pasted/],
+    ['the server refuses it',   mk({ fetch: () => ({ code: 401, body: {} }) }), SECRET,
+                                /refused that token \(401\)/],
+    ['the server errors',       mk({ fetch: () => ({ code: 503, body: {} }) }), SECRET,
+                                /answered 503/],
+    ['the snapshot is empty',   mk({ fetch: () => ({ code: 200,
+                                  body: { items: [], supplierPrices: [] } }) }), SECRET,
+                                /would price nothing/]
+  ];
+  refusals.forEach(([what, A, tok, why]) => {
+    const msg = A.ctx.syncTokenStore_(tok);
+    ok(what + ': not stored', !A.props.GC_SYNC_TOKEN, 'stored anyway');
+    ok(what + ': says why', why.test(msg), msg);
+    ok(what + ': the token is not in the message', msg.indexOf(SECRET) < 0);
+    ok(what + ': and not in the log', A.logs.join('\n').indexOf(SECRET) < 0);
+  });
+
+  /* A thrown fetch must not leak the request either. */
+  {
+    const A = mk({ fetch: () => { throw new Error('connect failed to ' + '?token=' + SECRET); } });
+    const msg = A.ctx.syncTokenStore_(SECRET);
+    ok('a thrown request does not leak the token', msg.indexOf(SECRET) < 0, msg);
+    ok('and nothing is stored', !A.props.GC_SYNC_TOKEN);
+  }
+
+  /* The one that works. */
+  {
+    let sent = null;
+    const A = mk({ fetch: (url, params) => { sent = { url, params }; return good; } });
+    const msg = A.ctx.syncTokenStore_('  ' + SECRET + '  ');   /* pasted with whitespace */
+    eq('a proved token is stored, trimmed', A.props.GC_SYNC_TOKEN, SECRET);
+    ok('sent as a bearer token', sent.params.headers.Authorization === 'Bearer ' + SECRET);
+    ok('asking for both datasets with cost',
+       /datasets=items,supplierPrices&cost=include/.test(sent.url));
+    ok('the dialog says SAVED AND PROVED', /^SAVED AND PROVED/.test(msg), msg);
+    ok('with the item count', /\n2 items\n/.test(msg), msg);
+    ok('and the supplier-price count', /1 supplier prices/.test(msg), msg);
+    ok('and the script id, so the wrong copy would be obvious',
+       /Script id: THE-LIVE-PROJECT-ID/.test(msg), msg);
+    ok('but never the token', msg.indexOf(SECRET) < 0);
+    ok('and the log never carries it either', A.logs.join('\n').indexOf(SECRET) < 0);
+    ok('nothing was written to any sheet', A.ss.getSheetByName('Prices') === null ||
+       A.ss.getSheetByName('Prices').getLastRow() <= 1);
+  }
+
+  /* The menu handler refuses to be run from the editor rather than throwing. */
+  {
+    const A = mk({ fetch: () => good, noUi: true });
+    const msg = A.ctx.setSyncToken();
+    ok('run from the editor it explains where the menu is',
+       /R&D Tools -> Setup -> Set GC Sync Token/.test(msg), msg);
+  }
+}
+
 group('Saving the sync token');
 {
   const SECRET = 'tok-live-9f3a-do-not-leak';

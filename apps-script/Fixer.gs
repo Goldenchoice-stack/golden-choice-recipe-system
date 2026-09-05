@@ -15,12 +15,20 @@ var FIX_GID = { log: 1784376487, ver: 2145004234, trial: 863907825 };
 var FIX_NAME = { log: 'R&D Log', ver: 'RECIPE VERSIONS', trial: 'R&D TRIAL LOG' };
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('R&D Tools')
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('R&D Tools')
     .addItem('Approve the recipe my cursor is on', 'approveHere')
     .addItem('Reject the recipe my cursor is on', 'rejectHere')
     .addSeparator()
     .addItem('Fix the sheet now', 'START_HERE')
     .addItem('Update prices from AutoCount', 'updatePricesFromAutocount')
+    .addSeparator()
+    /* Setup lives on the SHEET rather than in the script editor on purpose.
+       Two Apps Script copies of this system exist under two accounts, and a
+       credential saved from the editor went into the wrong one four times. A
+       menu served by the bound script cannot reach a copy. */
+    .addSubMenu(ui.createMenu('Setup')
+      .addItem('Set GC Sync Token', 'setSyncToken'))
     .addToUi();
 }
 

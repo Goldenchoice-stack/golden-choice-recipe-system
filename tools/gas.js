@@ -269,7 +269,8 @@ function load(fixture, opts) {
     },
 
     LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => true, releaseLock() {} }) },
-    ScriptApp:   { getService: () => ({ getUrl: () => opts.baseUrl || 'https://script.local/exec' }) },
+    ScriptApp:   { getService: () => ({ getUrl: () => opts.baseUrl || 'https://script.local/exec' }),
+                   getScriptId: () => opts.scriptId || 'SCRIPT-ID-UNDER-TEST' },
     HtmlService: {
       XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' },
       createHtmlOutput(body) {

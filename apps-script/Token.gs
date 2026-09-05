@@ -1,38 +1,124 @@
 /**
  * Golden Choice — putting the AutoCount read token where the script can find it.
  *
- * The Script Properties form is the obvious place for this and it kept losing the
- * row: typed, pasted, and then simply absent from the list afterwards. Three
- * separate checks agreed it had not saved, which is a bad way to spend an
- * afternoon and a worse way to find out later.
+ * THE HARD PART WAS NEVER THE STORING. It was making sure the token landed in
+ * THIS project. There are two Apps Script copies of this system under two Google
+ * accounts, and four separate attempts to save the token succeeded — in the other
+ * one. Every instruction that begins "open the Apps Script project" can be
+ * followed perfectly and still reach the wrong copy, because both copies look
+ * identical from the inside.
  *
- * So this does the same job with a Run button, and answers the question the form
- * never did: DID IT WORK. It proves the token against the real server BEFORE
- * writing it, so a saved token is a working token, and a bad one is refused with
- * the reason rather than stored and discovered days later.
+ * So the way in is the SPREADSHEET, not the script. R&D Tools -> Setup -> Set GC
+ * Sync Token is a menu on the live sheet, served by the script bound to it. Open
+ * the sheet by its id and the menu you get can only belong to the live project.
+ * There is no copy to land in.
  *
- * HOW TO USE IT
- *   1. Paste the token between the quotes below, replacing PASTE-THE-TOKEN-HERE.
- *   2. Save (Ctrl+S / Cmd+S), then Run -> saveSyncToken.
- *   3. Read what it says. On success it prints how big the snapshot was.
- *   4. Put PASTE-THE-TOKEN-HERE back, and save again.
+ * The token is typed into a modal prompt. It is never written to a cell, never
+ * logged, never echoed back into the dialog, and never put in an error message —
+ * including the catch, where an exception can carry the request that produced it.
  *
- * EVERYTHING IT SAYS GOES TO THE EXECUTION LOG. A function that only RETURNS a
- * string shows nothing at all when it is run from the editor — the log reads
- * "Execution completed" whether it saved the token or refused it. That is worse
- * than useless: it looks like success. So every answer here is logged.
+ * It is checked before it is kept: the sync server has to answer 200 and return
+ * a snapshot with both items and supplier prices in it. A token that does not
+ * work is not stored, and the reason is shown instead.
  *
- * The token is never logged, never returned, and never put in an error message,
- * so nothing here writes it anywhere except Script Properties. Step 4 still
- * matters: until you do it the token sits in this file, and this file is a copy
- * of the token in a place nobody thinks to look.
+ * The success dialog names the script id it wrote to. That is the whole point:
+ * if it is ever run in the copy again, the id on screen will say so.
  */
 
 /* Says it out loud AND hands it back, so it reads the same from the editor, from
-   the menu, and from a test. */
+   the menu, and from a test. A function that only RETURNS a string shows nothing
+   at all when it is run from the Apps Script editor. */
 function tk_(msg) { Logger.log(msg); return msg; }
 
+/* SUPERSEDED by the menu above, and kept only until that has been used once.
+   Pasting a credential into a source file is what let it be saved into the wrong
+   copy four times: a file can be edited anywhere, a bound menu cannot. */
 var PASTE_SYNC_TOKEN = 'PASTE-THE-TOKEN-HERE';
+
+/**
+ * Checks a token against the sync server and stores it only if it works.
+ * Returns a message that NEVER contains the token, on every path.
+ */
+function syncTokenStore_(token) {
+  var props = PropertiesService.getScriptProperties();
+  var url = String(props.getProperty(AC_PROP_URL) || '').trim();
+  if (!url)
+    return 'NOT SAVED\n\n' + AC_PROP_URL + ' is not set in this project, so there is ' +
+           'nothing to check the token against.';
+
+  token = String(token == null ? '' : token).trim();
+  if (!token) return 'NOT SAVED\n\nNothing was pasted.';
+
+  var sep = url.indexOf('?') >= 0 ? '&' : '?';
+  var res, code;
+  try {
+    res = UrlFetchApp.fetch(url + sep + 'datasets=items,supplierPrices&cost=include', {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true,
+      followRedirects: false
+    });
+    code = res.getResponseCode();
+  } catch (e) {
+    /* e.message can echo the request, and the request carries the token. */
+    return 'NOT SAVED\n\nThe sync server could not be reached. Nothing was stored.';
+  }
+
+  if (code === 401 || code === 403)
+    return 'NOT SAVED\n\nThe sync server refused that token (' + code + '). Copy ' +
+           'DASHBOARD_READ_TOKEN from the sync service again. Nothing was stored.';
+  if (code !== 200)
+    return 'NOT SAVED\n\nThe sync server answered ' + code + ', so the token could not ' +
+           'be proved either way. Nothing was stored.';
+
+  var body;
+  try { body = JSON.parse(res.getContentText()); }
+  catch (e2) { return 'NOT SAVED\n\nThe sync server answered 200 but not with JSON. ' +
+                      'Nothing was stored.'; }
+
+  var items = (body.items || []).length, prices = (body.supplierPrices || []).length;
+  if (!items || !prices)
+    return 'NOT SAVED\n\nThe token works, but that snapshot carries ' + items + ' items ' +
+           'and ' + prices + ' supplier prices — one of them is empty, so the refresh ' +
+           'would price nothing. Nothing was stored.';
+
+  props.setProperty(AC_PROP_TOKEN, token);
+
+  /* The script id is the answer to "did it go into the right copy this time".
+     It is not a secret, and it is the only thing on screen worth checking. */
+  var where = '';
+  try { where = ScriptApp.getScriptId(); } catch (e3) { where = '(script id unavailable)'; }
+
+  return 'SAVED AND PROVED\n\n' +
+         items + ' items\n' +
+         prices + ' supplier prices\n\n' +
+         'Stored in this project as ' + AC_PROP_TOKEN + '.\n' +
+         'Script id: ' + where;
+}
+
+/**
+ * R&D Tools -> Setup -> Set GC Sync Token.
+ *
+ * A modal prompt on the live spreadsheet. The token exists in the dialog and in
+ * one local variable, and nowhere else.
+ */
+function setSyncToken() {
+  var ui;
+  try { ui = SpreadsheetApp.getUi(); }
+  catch (e) {
+    return 'This is a menu item on the R&D Log spreadsheet, not something to run from ' +
+           'the editor. Open the sheet and use R&D Tools -> Setup -> Set GC Sync Token.';
+  }
+  var res = ui.prompt('Set GC Sync Token',
+    'Paste DASHBOARD_READ_TOKEN from the gc-ai-coo-central-sync service.\n\n' +
+    'It is checked against the sync server before it is kept, and it is never written ' +
+    'to a cell, a log, or shown again.',
+    ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return 'Cancelled. Nothing was stored.';
+  var msg = syncTokenStore_(res.getResponseText());
+  ui.alert('Set GC Sync Token', msg, ui.ButtonSet.OK);
+  return msg;
+}
 
 function saveSyncToken() {
   var props = PropertiesService.getScriptProperties();
