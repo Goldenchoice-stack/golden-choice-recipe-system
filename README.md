@@ -710,9 +710,13 @@ Run **`findLikeNames()`** in the editor before you price anything. On the live s
 today it finds, out of 441 names across 398 recipes:
 
 * **14 groups that are one ingredient spelt more than one way**, covering 307
-  recipe-slots — **107 of them uncostable** until somebody picks a spelling.
+  recipe-slots, **107 of them on a spelling with no price**.
 * **6 cells holding a choice rather than an ingredient.**
 * **239 further pairs** worth a look.
+
+Settling a group does not cost a drink by itself — nothing does until a real
+price is typed. It means **one price to type instead of several**, and no recipe
+left behind on the other spelling.
 
 The pattern behind almost all of it is a **dose written into the ingredient name**:
 
@@ -726,8 +730,30 @@ The pattern behind almost all of it is a **dose written into the ingredient name
 | Thai Green | `Thai Green (12G)`, `Thai Green` | 4 |
 | Cheese Cap | `Cheese Cap (1:3)`, `Cheese Cap`, `Original Cheese Cap` | 4 |
 
-The quantity has its own column. A dose in the name splits one ingredient into five
-unpriceable ones, and 24 recipes wait on the split rather than on a price.
+The quantity has its own column. A dose in the name splits one ingredient into six
+rows to price instead of one.
+
+### Espresso is done — 5 Sep 2026
+
+`espressoApply()` in `Rename.gs` merged five of the six spellings into `Espresso`.
+441 ingredients became 437. The interesting part is what it refused, and why the
+five it changed were not simple.
+
+Every espresso row had a dose in the name **and** a different number in the
+quantity column — `Espresso 18G` beside `36 ML`. That is not a contradiction:
+18 g of ground coffee yields about 36 ml of espresso, and both are true. The
+volume is what goes in the cup and costing reads it, so it stays; the dose is
+what the shot was pulled from, so it is written into the **CHANGE LOG** with the
+old and new name beside it. The live R&D TRIAL LOG holds 32 of 398 recipes, so
+it is not a reliable home for anything.
+
+**One row was refused and still needs a person.** `RCP-0393 Coconut Americano`
+reads `Espresso (18G)` beside a quantity of **36 G** — the same unit twice, with
+two different numbers. Every other espresso row measures the yield in ML, so the
+UOM is probably wrong, but "probably" is not good enough to overwrite a recipe.
+
+Renaming is done by plan first: `espressoPlan()` writes nothing and prints
+exactly what would change. Use the same pair for the next group.
 
 The six cells holding a choice are `Soda Water/Water`, `Soda Water/ Water`,
 `Fructose/ White Sugar`, `Marie Biscuit/ Roti Kok (middle)`,

@@ -202,7 +202,9 @@ function findLikeNames() {
   out.push('   ' + choices.length + ' cell(s) hold a choice rather than an ingredient.');
   out.push('   ' + same.length + ' group(s) are one ingredient spelt more than one way, ' +
            'covering ' + blocked + ' recipe-slots,');
-  out.push('       ' + stuck + ' of which cannot be costed until somebody settles the spelling.');
+  out.push('       ' + stuck + ' of which sit on a spelling that has no price.');
+  out.push('   Settling a group does not cost a drink by itself. It means ONE price to');
+  out.push('   type instead of several, and no recipe left behind on the other spelling.');
   out.push('   ' + single.length + ' further pair(s) are worth a look.');
   out.push('');
   out.push('Nothing here has been changed. The price list is joined to the recipes by');
@@ -219,12 +221,13 @@ function findLikeNames() {
   out.push('');
 
   out.push('2. THE SAME WORDS ONCE CASE, PUNCTUATION AND PACK SIZE COME OFF');
-  out.push('   Near certainly one ingredient. Keep the spelling that is priced.');
+  out.push('   Near certainly one ingredient. Keep the spelling that is priced, or the');
+  out.push('   plainest one if none is. Rename.gs does it and keeps any dose it finds.');
   if (!same.length) out.push('   none');
   for (i = 0; i < same.length; i++) {
     var ks = same[i].keys;
     out.push('   — ' + weight_(ks) + ' recipe-slots between them, ' +
-             (blocking_(ks) ? blocking_(ks) + ' of them uncostable until this is settled'
+             (blocking_(ks) ? blocking_(ks) + ' of them on a spelling with no price'
                             : 'all of them priced already'));
     for (n = 0; n < ks.length; n++) out.push('       ' + label_(ks[n]));
   }

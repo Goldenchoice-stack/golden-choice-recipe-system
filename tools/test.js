@@ -787,8 +787,8 @@ group('Finding the pairs, and refusing to merge them');
   ok('the two spellings of one syrup are grouped', /Flavoured Syrup Ice/.test(same) &&
      /Flavored Syrup Ice 1\.08kg/.test(same));
   ok('with the recipes waiting on them counted', /3 recipe-slots/.test(same));
-  ok('and how many of those cannot be costed yet',
-     /3 of them uncostable until this is settled/.test(same));
+  ok('and how many of those sit on a spelling with no price',
+     /3 of them on a spelling with no price/.test(same));
   ok('and each spelling says whether it is priced', /not priced/.test(same));
   ok('coconut milk is not grouped with coconut water', !/Coconut Milk/.test(same));
 
@@ -820,7 +820,9 @@ group('Finding the pairs, and refusing to merge them');
     ok('and a fully priced group says so plainly',
        /all of them priced already/.test(body), body);
     ok('the headline counts only what is stuck',
-       /2 of which cannot be costed/.test(r), r.split('\n').slice(0, 8).join(' | '));
+       /2 of which sit on a spelling that has no price/.test(r), r.split('\n').slice(0, 8).join(' | '));
+    ok('and does not claim the spelling is what blocks costing',
+       /ONE price to[\s\S]*type instead of several/.test(r));
   }
 
   /* The fixture on its own must produce no false finding. */
