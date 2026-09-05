@@ -723,6 +723,70 @@ group('Pricing the free rows');
      row('Water 55c').slice(1, 3), [0, 1]);
 }
 
+/* ============================================ the same name written two ways */
+/**
+ * The price list joins to the recipes by name, so a second spelling is a second
+ * row to price and every recipe using the first spelling stays uncosted with
+ * nothing on screen to say why. This finds those; it must never MERGE them,
+ * because "Coconut Milk" and "Milk" share a word and are different things.
+ */
+group('Stripping the packaging off a name');
+{
+  const N = load(fx.build(), { now: NOW }).ctx;
+  const k = n => N.nmKey_(n);
+  eq('a pack size written with a decimal comes off',
+     k('Flavored Syrup Ice 1.08kg – Ice Syrup'), 'FLAVORED ICE SYRUP');
+  eq('and the British spelling lands on the same key',
+     k('Flavoured Syrup Ice'), 'FLAVORED ICE SYRUP');
+  eq('word order does not matter', k('Ice Syrup'), k('Syrup Ice'));
+  eq('nor does a word said twice', k('Ice Syrup Ice'), 'ICE SYRUP');
+  eq('nor case or punctuation', k('SODA-WATER'), k('soda water'));
+  eq('a bare pack size is only packaging', k('Milk 1L'), 'MILK');
+  ok('two different products keep different keys',
+     k('Coconut Milk') !== k('Coconut Water'));
+  ok('and a word in common is not a key', k('Coconut Milk') !== k('Milk'));
+}
+
+group('Finding the pairs, and refusing to merge them');
+{
+  const f = fx.build();
+  const mk = (id, name, ings) => ings.map(n =>
+    ['2026-08-01', id, name, n, '10', 'ML', 'GC', 'Approved', '', 'V1.0']);
+  f.tabs[0].values = [fx.LOG_HEAD.slice()].concat(
+    mk('RCP-9001', 'A', ['Flavored Syrup Ice 1.08kg – Ice Syrup', 'Milk']),
+    mk('RCP-9002', 'B', ['Flavored Syrup Ice 1.08kg – Ice Syrup', 'Coconut Milk']),
+    mk('RCP-9003', 'C', ['Flavoured Syrup Ice', 'Soda Water/ Water', 'COCONUT WATER']),
+    mk('RCP-9004', 'D', ['Coloryeah Coconut Water', 'Sparkling Water']));
+  const N = load(f, { now: NOW }).ctx;
+  const msg = N.findLikeNames();
+  const part = h => (msg.split(/\n\n/).filter(b => b.indexOf(h) === 0)[0] || '');
+  const choice = part('1.'), same = part('2.'), inside = part('3.');
+
+  ok('a cell holding two ingredients is called out', /Soda Water\/ Water/.test(choice));
+  ok('and only that one is', choice.split('\n').length === 4);
+
+  ok('the two spellings of one syrup are grouped', /Flavoured Syrup Ice/.test(same) &&
+     /Flavored Syrup Ice 1\.08kg/.test(same));
+  ok('with the recipes waiting on them counted', /3 recipe-slots/.test(same));
+  ok('and each spelling says whether it is priced', /not priced/.test(same));
+  ok('coconut milk is not grouped with coconut water', !/Coconut Milk/.test(same));
+
+  ok('a name inside another is offered as a question',
+     /COCONUT WATER\s+inside\s+Coloryeah Coconut Water/.test(inside));
+  ok('but a common one-word name is not, or it would be inside everything',
+     !/^\s*Milk\s+inside/m.test(inside));
+  ok('and the questions are kept out of the findings', !/Coloryeah/.test(same));
+
+  ok('nothing at all was written', N.library_().every(r =>
+     r.ing.every(i => i.n !== 'Flavored Syrup Ice')));
+  ok('the report says so out loud', /nothing[\s\S]*was written/i.test(msg));
+
+  /* The fixture on its own must produce no false finding. */
+  const clean = load(fx.build(), { now: NOW }).ctx.findLikeNames();
+  const cs = clean.split(/\n\n/).filter(b => b.indexOf('2.') === 0)[0];
+  ok('a library with no duplicate spellings reports none', /none/.test(cs), cs);
+}
+
 group('The four pages are the tested copies');
 for (const [name, want] of Object.entries(ctx.PAGE_FINGERPRINTS)) {
   const buf = fs.readFileSync(path.join(__dirname, '..', 'pages', name));
