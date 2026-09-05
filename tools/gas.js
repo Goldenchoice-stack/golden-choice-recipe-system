@@ -146,6 +146,7 @@ class Spreadsheet {
  * test calls them exactly as the deployed script does.
  */
 function load(fixture, opts) {
+  const logs = [];
   opts = opts || {};
   const ss = new Spreadsheet(fixture.name || 'R&D Log',
     fixture.tabs.map(t => new Sheet(t.name, t.gid, t.values)));
@@ -281,7 +282,11 @@ function load(fixture, opts) {
       MimeType: { JSON: 'JSON' },
       createTextOutput(t) { const o = { setMimeType: () => o, getContent: () => t }; return o; }
     },
-    Logger: { log: () => {} }
+    /* Kept, not discarded. A function that returns a message but never logs it
+       shows nothing at all when it is run from the Apps Script editor, which
+       reads as success whatever it actually did. A test can only catch that if
+       the harness remembers what was logged. */
+    Logger: { log: (m) => { logs.push(String(m)); } }
   };
   ctx.globalThis = ctx;
 
@@ -319,7 +324,7 @@ function load(fixture, opts) {
 
   /* The Script Properties the run left behind, so a test can assert what was
      stored as well as what was reported. */
-  return { ctx, ss, drive, folder, get props() { return opts.properties || {}; } };
+  return { ctx, ss, drive, folder, logs, get props() { return opts.properties || {}; } };
 }
 
 module.exports = { load, Sheet, Spreadsheet, formatDate };

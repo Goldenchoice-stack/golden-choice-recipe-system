@@ -1176,6 +1176,28 @@ group('Saving the sync token');
     ok('and it says the refresh would price nothing', /would price nothing/.test(r), r);
   }
 
+  /* The failure that started all this: a function that only RETURNS a string
+     shows NOTHING when run from the editor. The log reads "Execution completed"
+     whether it saved the token or refused it, which looks exactly like success. */
+  {
+    const A = mk({ fetch: () => ({ code: 401, body: {} }) });
+    A.ctx.PASTE_SYNC_TOKEN = SECRET;
+    const said = A.ctx.saveSyncToken();
+    ok('a refusal reaches the execution log, not just the return value',
+       A.logs.join('\n').indexOf(said) >= 0,
+       'logged: ' + JSON.stringify(A.logs));
+    const B = mk({ fetch: () => ({ code: 200, body: { items: [{ItemCode:'A'}],
+                                                     supplierPrices: [{ItemCode:'A'}] } }) });
+    B.ctx.PASTE_SYNC_TOKEN = SECRET;
+    const won = B.ctx.saveSyncToken();
+    ok('and so does a success', B.logs.join('\n').indexOf(won) >= 0);
+    ok('without the log carrying the token', B.logs.join('\n').indexOf(SECRET) < 0);
+    const C = mk({ fetch: () => ({ code: 200, body: { items: [], supplierPrices: [] } }) });
+    const nope = C.ctx.saveSyncToken();          /* call first, then read the log */
+    ok('an unpasted placeholder is logged too', C.logs.join('\n').indexOf(nope) >= 0,
+       'logged: ' + JSON.stringify(C.logs));
+  }
+
   /* It works. */
   {
     let sent = null;

@@ -17,11 +17,20 @@
  *   3. Read what it says. On success it prints how big the snapshot was.
  *   4. Put PASTE-THE-TOKEN-HERE back, and save again.
  *
+ * EVERYTHING IT SAYS GOES TO THE EXECUTION LOG. A function that only RETURNS a
+ * string shows nothing at all when it is run from the editor — the log reads
+ * "Execution completed" whether it saved the token or refused it. That is worse
+ * than useless: it looks like success. So every answer here is logged.
+ *
  * The token is never logged, never returned, and never put in an error message,
  * so nothing here writes it anywhere except Script Properties. Step 4 still
  * matters: until you do it the token sits in this file, and this file is a copy
  * of the token in a place nobody thinks to look.
  */
+
+/* Says it out loud AND hands it back, so it reads the same from the editor, from
+   the menu, and from a test. */
+function tk_(msg) { Logger.log(msg); return msg; }
 
 var PASTE_SYNC_TOKEN = 'PASTE-THE-TOKEN-HERE';
 
@@ -29,13 +38,13 @@ function saveSyncToken() {
   var props = PropertiesService.getScriptProperties();
   var url = String(props.getProperty(AC_PROP_URL) || '').trim();
   if (!url)
-    return 'NOT SAVED. ' + AC_PROP_URL + ' is missing, so there is nothing to test the ' +
-           'token against. Set it first.';
+    return tk_('NOT SAVED. ' + AC_PROP_URL + ' is missing, so there is nothing to test the ' +
+           'token against. Set it first.');
 
   var token = String(PASTE_SYNC_TOKEN == null ? '' : PASTE_SYNC_TOKEN).trim();
   if (!token || token === 'PASTE-THE-TOKEN-HERE')
-    return 'NOT SAVED. Paste the token between the quotes on the PASTE_SYNC_TOKEN line ' +
-           'near the top of this file, save, then run this again.';
+    return tk_('NOT SAVED. Paste the token between the quotes on the PASTE_SYNC_TOKEN line ' +
+           'near the top of this file, save, then run this again.');
 
   /* Proved before it is stored. A token that does not work is not worth keeping,
      and finding that out now is the whole point of this file. */
@@ -51,38 +60,38 @@ function saveSyncToken() {
     code = res.getResponseCode();
   } catch (e) {
     /* e.message can echo the request. Only the class of failure is reported. */
-    return 'NOT SAVED. The sync server could not be reached at all. Check ' +
-           AC_PROP_URL + '. Nothing was stored.';
+    return tk_('NOT SAVED. The sync server could not be reached at all. Check ' +
+           AC_PROP_URL + '. Nothing was stored.');
   }
 
   if (code === 401 || code === 403)
-    return 'NOT SAVED. The sync server refused that token (' + code + '). It is the ' +
+    return tk_('NOT SAVED. The sync server refused that token (' + code + '). It is the ' +
            'wrong value, or it has been rotated. Copy DASHBOARD_READ_TOKEN from the ' +
-           'sync service again. Nothing was stored.';
+           'sync service again. Nothing was stored.');
   if (code !== 200)
-    return 'NOT SAVED. The sync server answered ' + code + ', so the token could not be ' +
-           'proved either way. Nothing was stored.';
+    return tk_('NOT SAVED. The sync server answered ' + code + ', so the token could not be ' +
+           'proved either way. Nothing was stored.');
 
   var body;
   try { body = JSON.parse(res.getContentText()); }
-  catch (e2) { return 'NOT SAVED. The sync server answered 200 but not with JSON. ' +
-                      'Nothing was stored.'; }
+  catch (e2) { return tk_('NOT SAVED. The sync server answered 200 but not with JSON. ' +
+                          'Nothing was stored.'); }
 
   var items = (body.items || []).length, prices = (body.supplierPrices || []).length;
   if (!items || !prices)
-    return 'NOT SAVED. The token works, but that snapshot carries ' + items + ' items ' +
+    return tk_('NOT SAVED. The token works, but that snapshot carries ' + items + ' items ' +
            'and ' + prices + ' supplier prices — one of them is empty, so the refresh ' +
-           'would price nothing. Ask for the snapshot to be uploaded again.';
+           'would price nothing. Ask for the snapshot to be uploaded again.');
 
   props.setProperty(AC_PROP_TOKEN, token);
 
-  return 'SAVED, AND PROVED.\n\n' +
+  return tk_('SAVED, AND PROVED.\n\n' +
     '  The sync server accepted the token and returned ' + items + ' items and ' +
     prices + ' supplier prices.\n' +
     '  ' + AC_PROP_TOKEN + ' is now in Script Properties.\n\n' +
     'NOW PUT PASTE-THE-TOKEN-HERE BACK between the quotes above and save. Until you\n' +
     'do, this file holds a working token in a place nobody thinks to look.\n\n' +
-    'Then run a4_previewPrices to see what the refresh would do. It writes nothing.';
+    'Then run a4_previewPrices to see what the refresh would do. It writes nothing.');
 }
 
 /* Does the stored token still work? Reads nothing out of this file, so it is
@@ -92,8 +101,8 @@ function checkSyncToken() {
   var url = String(props.getProperty(AC_PROP_URL) || '').trim();
   var token = String(props.getProperty(AC_PROP_TOKEN) || '').trim();
   if (!url || !token)
-    return 'Not set yet: ' + (!url ? AC_PROP_URL : '') + (!url && !token ? ' and ' : '') +
-           (!token ? AC_PROP_TOKEN : '') + ' is missing from Script Properties.';
+    return tk_('Not set yet: ' + (!url ? AC_PROP_URL : '') + (!url && !token ? ' and ' : '') +
+           (!token ? AC_PROP_TOKEN : '') + ' is missing from Script Properties.');
   var stale = String(PASTE_SYNC_TOKEN || '').trim();
   var warn = (stale && stale !== 'PASTE-THE-TOKEN-HERE')
     ? '\n\nWARNING: Token.gs still holds a token in PASTE_SYNC_TOKEN. Put ' +
@@ -103,9 +112,9 @@ function checkSyncToken() {
     method: 'get', headers: { Authorization: 'Bearer ' + token },
     muteHttpExceptions: true, followRedirects: false });
   if (res.getResponseCode() !== 200)
-    return 'The stored token is NOT working: the server answered ' +
-           res.getResponseCode() + '.' + warn;
+    return tk_('The stored token is NOT working: the server answered ' +
+           res.getResponseCode() + '.' + warn);
   var body = JSON.parse(res.getContentText());
-  return 'The stored token works. The snapshot carries ' + (body.items || []).length +
-         ' items and ' + (body.supplierPrices || []).length + ' supplier prices.' + warn;
+  return tk_('The stored token works. The snapshot carries ' + (body.items || []).length +
+         ' items and ' + (body.supplierPrices || []).length + ' supplier prices.' + warn);
 }
