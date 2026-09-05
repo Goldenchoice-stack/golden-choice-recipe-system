@@ -1227,6 +1227,53 @@ group('Saving the sync token');
   }
 }
 
+/* ================================= not overwriting somebody else's newer page */
+/**
+ * installPages checked its SOURCE thoroughly and never looked at what was
+ * already live. On 5 Sep 2026 three of the four live pages turned out to have
+ * been changed by another editor while this repository still held the previous
+ * ones — running it would have rolled all three back without a word.
+ */
+group('A page somebody else changed is not overwritten');
+{
+  const A = load(fx.build(), { now: NOW, properties: {} });
+  const name = 'index.html';
+  const want = A.ctx.PAGE_FINGERPRINTS[name];
+  const setLive = t => { A.folder._written[name] = t; };
+  const live = () => A.folder._written[name];
+
+  /* First install: no record exists, so it writes and says what it replaced. */
+  setLive('<title>something older</title>');
+  const first = A.ctx.installPages();
+  eq('with no record it still installs', live(), A.ctx.PAGE_DATA[name]);
+  ok('and prints the md5 it replaced, so the change is recoverable',
+     /had no record from this project; replacing [0-9a-f]{32}/.test(first), first.slice(0, 400));
+  ok('the record is kept for next time', !!A.props['GC_PAGE_MD5_index_html']);
+
+  /* Somebody else edits the live page. */
+  setLive('<title>somebody else improved this</title>');
+  /* And this project moves on to a different intended version. */
+  const older = A.ctx.PAGE_DATA[name];
+  A.ctx.PAGE_DATA[name] = '<title>this project\'s older copy</title>';
+  A.ctx.PAGE_FINGERPRINTS[name] = { md5: '00000000000000000000000000000000', size: 1 };
+
+  const second = A.ctx.installPages();
+  eq('their page is left exactly as they left it',
+     live(), '<title>somebody else improved this</title>');
+  ok('and the run says so rather than reporting success',
+     /KEPT     index\.html/.test(second), second.slice(0, 600));
+  ok('naming what this project had left there', /this project last left/.test(second));
+  ok('and how to keep it', /regenerate PagesData\.gs from the live file/.test(second));
+  ok('the summary counts it', /left alone because somebody else changed them/.test(second));
+
+  /* The override exists, is explicit, and says it was used. */
+  A.ctx.PAGE_DATA[name] = older;
+  A.ctx.PAGE_FINGERPRINTS[name] = want;
+  const forced = A.ctx.installPages(true);
+  ok('forcing is marked as forced', /\(FORCED\)/.test(forced));
+  eq('and does replace it', live(), older);
+}
+
 group('The four pages are the tested copies');
 for (const [name, want] of Object.entries(ctx.PAGE_FINGERPRINTS)) {
   const buf = fs.readFileSync(path.join(__dirname, '..', 'pages', name));
