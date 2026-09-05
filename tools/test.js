@@ -287,6 +287,34 @@ group('Reading the pack size off the item name');
   ok('and shows the cost per unit worked out',
      /RM0\.13500 per G/.test(A.ctx.acShortlist_(m('Matcha Powder').full, 6)));
 
+  group('The dry run, before anything is written');
+  {
+    /* acFill_ clears the whole Prices tab and rewrites it. A preview that does
+       not predict that exactly is worse than none, so the test is not that the
+       dry run says something sensible — it is that the real run agrees with it. */
+    const B = bare();
+    B.ss.insertSheet('Prices');
+    const before = () => JSON.stringify(B.ss.getSheetByName('Prices').getRange(1, 1, 5, 11).getValues());
+    const was = before();
+    const dry = B.ctx.acFill_(true);
+    ok('it says out loud that nothing was written',
+       /DRY RUN, THE PRICES TAB HAS NOT BEEN TOUCHED/.test(dry.report));
+    ok('and reports itself as a dry run', dry.dryRun === true);
+    eq('the tab really is untouched', before(), was);
+    const real = B.ctx.acFill_();
+    eq('the real run prices exactly what the preview said',
+       JSON.stringify(real.counts), JSON.stringify(dry.counts));
+    eq('over exactly the same ingredients', real.ingredients, dry.ingredients);
+    ok('and the real run does not claim to be a preview', !real.dryRun);
+    ok('only the real one says nothing about being untouched',
+       !/HAS NOT BEEN TOUCHED/.test(real.report));
+    /* A preview must not leave a tab behind either. */
+    const C = bare();
+    const none = C.ctx.acFill_(true);
+    ok('with no Prices tab it explains rather than creating one',
+       /no Prices tab yet/.test(none.report) && !C.ss.getSheetByName('Prices'));
+  }
+
   group('The run');
   const first = A.ctx.acFill_();
   const tab = () => {

@@ -10,7 +10,8 @@
  *   1_preflight     Is this project safe to deploy? Run it before every deploy.
  *   2_installPages  Put the four page files into the app's Drive folder.
  *   3_checkSecrets  Are the six settings in Script Properties?
- *   4_updatePrices  Fill the Prices tab from the AutoCount snapshot.
+ *   4_previewPrices Show what AutoCount WOULD do. Writes nothing. Run this first.
+ *   5_updatePrices  Fill the Prices tab from the AutoCount snapshot.
  *
  * The numbers are only there to fix the order in the picker.
  */
@@ -18,4 +19,5 @@
 function a1_preflight()    { return preflight(); }
 function a2_installPages() { return installPages(); }
 function a3_checkSecrets() { return checkSecrets(); }
-function a4_updatePrices() { return acFill_().report; }
+function a4_previewPrices() { return acFill_(true).report; }
+function a5_updatePrices()  { return acFill_().report; }

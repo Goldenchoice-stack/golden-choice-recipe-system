@@ -302,13 +302,18 @@ function acSnapshot_() {
  * hand survives every future run — which is the property that makes running it
  * again safe enough to be worth doing.
  */
-function acFill_() {
+function acFill_(dryRun) {
   var snap = acSnapshot_();
   var catalogue = acCatalogue_(snap.items, snap.supplierPrices);
   var ings = acIngredients_();
   var ss = SpreadsheetApp.getActive();
   var sh = ss.getSheetByName(PRICES_TAB);
+  /* A dry run creates nothing either. An empty tab left behind by a preview
+     would be a change, and a preview that changes something is not a preview. */
   if (!sh) {
+    if (dryRun) return { report: 'There is no ' + PRICES_TAB + ' tab yet, so there is ' +
+                                 'nothing to compare against. Run seedPrices() first.',
+                         counts: {}, ingredients: ings.length };
     sh = ss.insertSheet(PRICES_TAB);
   }
 
@@ -422,15 +427,20 @@ function acFill_() {
     n.orphan = (n.orphan || 0) + 1;
   }
 
-  sh.clear();
-  sh.getRange(1, 1, 1, AC_HEAD.length).setValues([AC_HEAD]).setFontWeight('bold');
-  sh.setFrozenRows(1);
-  if (rows.length) {
-    sh.getRange(2, 1, rows.length, AC_HEAD.length).setValues(rows);
-    /* The shortlist is several lines in one cell and is the column people
-       actually read, so it is given room rather than clipped to a sliver. */
-    sh.getRange(2, 10, rows.length, 1).setWrap(true);
-    sh.setColumnWidth(10, 420);
+  /* Everything above only read and worked out. This is the only part that
+     changes the sheet, and it is the whole tab at once — so a preview that
+     skips exactly this block predicts the real run exactly, by construction. */
+  if (!dryRun) {
+    sh.clear();
+    sh.getRange(1, 1, 1, AC_HEAD.length).setValues([AC_HEAD]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    if (rows.length) {
+      sh.getRange(2, 1, rows.length, AC_HEAD.length).setValues(rows);
+      /* The shortlist is several lines in one cell and is the column people
+         actually read, so it is given room rather than clipped to a sliver. */
+      sh.getRange(2, 10, rows.length, 1).setWrap(true);
+      sh.setColumnWidth(10, 420);
+    }
   }
 
   /* The report says only what it can tell. Once a code sits in column D there
@@ -438,7 +448,8 @@ function acFill_() {
      it does not claim to know. */
   var priced = n.chosen + n.matched;
   var is = function (k, one, many) { return k + (k === 1 ? ' ' + one : ' ' + many); };
-  return { report: 'Prices from AutoCount, ' + today + '.\n\n' +
+  return { report: 'Prices from AutoCount, ' + today +
+      (dryRun ? ' — DRY RUN, THE PRICES TAB HAS NOT BEEN TOUCHED' : '') + '.\n\n' +
       is(ings.length, 'ingredient', 'ingredients') + ' in the R&D Log.\n\n' +
       is(priced, 'is', 'are') + ' priced from an item code' +
         (n.matched ? ', ' + n.matched + ' of which ' + (n.matched === 1 ? 'was' : 'were') +
@@ -454,8 +465,10 @@ function acFill_() {
                   (n.orphan === 1 ? 'was' : 'were') + ' kept at the bottom rather than ' +
                   'thrown away.\n' : '') + '\n' +
       'Nothing here was priced on a guess. Price a row by hand and put your name in ' +
-      'Source, and no future run will touch it.',
-    counts: n, ingredients: ings.length };
+      'Source, and no future run will touch it.' +
+      (dryRun ? '\n\nNothing was written. The real run rebuilds the whole tab from these ' +
+                'same numbers, keeping every row somebody owns.' : ''),
+    counts: n, ingredients: ings.length, dryRun: !!dryRun };
 }
 
 /* The menu item. Everything it can go wrong with, it says out loud. */
