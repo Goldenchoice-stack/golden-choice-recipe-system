@@ -745,6 +745,18 @@ group('Stripping the packaging off a name');
   ok('two different products keep different keys',
      k('Coconut Milk') !== k('Coconut Water'));
   ok('and a word in common is not a key', k('Coconut Milk') !== k('Milk'));
+
+  /* A slash is not enough: the live sheet has one separating a grade code and
+     one separating a pack unit, and neither is a choice. */
+  const c = n => N.nmChoice_(n);
+  ok('an ingredient on each side of the slash is a choice', c('Soda Water/ Water'));
+  ok('with or without the space', c('Soda Water/Water'));
+  ok('and two real products are too', c('Fructose/ White Sugar'));
+  ok('the word "or" reads the same way', c('Fructose or White Sugar'));
+  ok('a two-letter grade code is not a choice',
+     !c('H/R - Japanese Hojicha Green Tea Powder 500gm/pkt'));
+  ok('nor is a pack unit', !c('Zonefor Jasmine Tea Leaves 50g/bag'));
+  ok('nor is a name with no slash at all', !c('Soda Water'));
 }
 
 group('Finding the pairs, and refusing to merge them');
@@ -763,7 +775,14 @@ group('Finding the pairs, and refusing to merge them');
   const choice = part('1.'), same = part('2.'), inside = part('3.');
 
   ok('a cell holding two ingredients is called out', /Soda Water\/ Water/.test(choice));
-  ok('and only that one is', choice.split('\n').length === 4);
+  ok('and only that one is', choice.split('\n').length === 5);
+  /* It is two ingredients, so its words must not be compared with anything. */
+  ok('and a choice is kept out of the same-words groups',
+     !/Soda Water\/ Water/.test(same));
+
+  ok('the headline is at the top, where truncation cannot reach it',
+     /^THE SAME INGREDIENT WRITTEN TWO WAYS\n\n {3}\d+ distinct ingredient names/.test(msg));
+  ok('and it counts the groups', /1 group\(s\) are one ingredient spelt more than one way/.test(msg));
 
   ok('the two spellings of one syrup are grouped', /Flavoured Syrup Ice/.test(same) &&
      /Flavored Syrup Ice 1\.08kg/.test(same));

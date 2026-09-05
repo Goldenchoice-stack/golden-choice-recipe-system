@@ -45,6 +45,9 @@ var NM_UNIT = { KG: 1, G: 1, L: 1, ML: 1, CC: 1, OZ: 1, LB: 1, PC: 1, PCS: 1, X:
 
 /* Words so common that everything contains them; a one-word name made of one
    of these sits inside forty others and asking about all forty is noise. */
+/* How many of the group-3 questions to print. The rest are counted. */
+var NM_ASK = 25;
+
 var NM_COMMON = { MILK: 1, ICE: 1, WATER: 1, SUGAR: 1, TEA: 1, COFFEE: 1, SYRUP: 1,
                   JUICE: 1, POWDER: 1, CREAM: 1, SAUCE: 1, BASE: 1, JAM: 1, OIL: 1 };
 
@@ -62,6 +65,24 @@ function nmWords_(name) {
 /* Sorted and de-duplicated, so word order and a word said twice stop mattering:
    "Flavored Syrup Ice 1.08kg - Ice Syrup" and "Flavoured Syrup Ice" both come
    out FLAVORED ICE SYRUP. */
+/**
+ * A slash is not enough. "H/R - Japanese Hojicha Green Tea Powder 500gm/pkt" has
+ * two of them and is one product: the first separates a grade code, the second a
+ * pack unit. A choice has an INGREDIENT on both sides of the slash — something
+ * left once the sizes, units and packaging words are taken off, and more than a
+ * letter or two of it.
+ */
+function nmChoice_(name) {
+  var parts = String(name == null ? '' : name).split(/\s*\/\s*|\s+or\s+/i);
+  if (parts.length < 2) return false;
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].replace(/^\s+|\s+$/g, '');
+    if (p.length < 3) return false;              /* H/R is a code */
+    if (!nmWords_(p).length) return false;       /* 50g/bag is a pack */
+  }
+  return true;
+}
+
 function nmKey_(name) {
   var w = nmWords_(name), seen = {}, out = [];
   for (var i = 0; i < w.length; i++) if (!seen[w[i]]) { seen[w[i]] = 1; out.push(w[i]); }
@@ -103,17 +124,24 @@ function findLikeNames() {
   function byWeight_(x, y) { return weight_(y.keys) - weight_(x.keys); }
 
   /* --------------------------------------------- 1. a cell holding a choice */
-  var choices = [];
+  var choices = [], isChoice = {};
   for (i = 0; i < keys.length; i++)
-    if (/[\/]|\bor\b/i.test(spelling[keys[i]])) choices.push(keys[i]);
+    if (nmChoice_(spelling[keys[i]])) { choices.push(keys[i]); isChoice[keys[i]] = 1; }
   choices.sort(function (a, b) { return uses[b] - uses[a]; });
+
+  /* A choice is two ingredients, so its words are two ingredients' words and
+     comparing them with anything is meaningless: "Soda Water/Water" carries the
+     same words as "Soda Water" and is not the same thing. They are left out of
+     both comparisons below, and their own section says what to do with them. */
+  var cmp = [];
+  for (i = 0; i < keys.length; i++) if (!isChoice[keys[i]]) cmp.push(keys[i]);
 
   /* ------------------------------------------------------ 2. the same words */
   var groups = {}, k2;
-  for (i = 0; i < keys.length; i++) {
-    k2 = nmKey_(spelling[keys[i]]);
+  for (i = 0; i < cmp.length; i++) {
+    k2 = nmKey_(spelling[cmp[i]]);
     if (!k2) continue;
-    (groups[k2] = groups[k2] || []).push(keys[i]);
+    (groups[k2] = groups[k2] || []).push(cmp[i]);
   }
   var same = [];
   for (var g in groups) if (groups.hasOwnProperty(g) && groups[g].length > 1)
@@ -122,45 +150,56 @@ function findLikeNames() {
 
   /* ------------------------------------------------ 3. one name inside another */
   var words = {}, single = [];
-  for (i = 0; i < keys.length; i++) {
-    var w = nmWords_(spelling[keys[i]]), set = {};
+  for (i = 0; i < cmp.length; i++) {
+    var w = nmWords_(spelling[cmp[i]]), set = {};
     for (var q = 0; q < w.length; q++) set[w[q]] = 1;
-    words[keys[i]] = { list: Object.keys(set), set: set };
+    words[cmp[i]] = { list: Object.keys(set), set: set };
   }
-  for (i = 0; i < keys.length; i++) {
-    var A = words[keys[i]];
+  for (i = 0; i < cmp.length; i++) {
+    var A = words[cmp[i]];
     /* One word, and a common one: it is inside everything and means nothing.
        A single UNCOMMON word is kept — "Fructose" inside "Fructose Syrup 25kg"
        is exactly the pair worth asking about. */
     if (!A.list.length) continue;
     if (A.list.length === 1 && NM_COMMON[A.list[0]]) continue;
-    for (var j2 = 0; j2 < keys.length; j2++) {
+    for (var j2 = 0; j2 < cmp.length; j2++) {
       if (j2 === i) continue;
-      var B = words[keys[j2]];
+      var B = words[cmp[j2]];
       if (B.list.length <= A.list.length) continue;
       /* More than two words added is a different product, not a brand. */
       if (B.list.length - A.list.length > 2) continue;
       var inside = true;
       for (var m = 0; m < A.list.length; m++) if (!B.set[A.list[m]]) { inside = false; break; }
       if (!inside) continue;
-      if (nmKey_(spelling[keys[i]]) === nmKey_(spelling[keys[j2]])) continue;   /* group 2 has it */
-      single.push({ keys: [keys[i], keys[j2]] });
+      if (nmKey_(spelling[cmp[i]]) === nmKey_(spelling[cmp[j2]])) continue;   /* group 2 has it */
+      single.push({ keys: [cmp[i], cmp[j2]] });
     }
   }
   single.sort(byWeight_);
 
   /* ------------------------------------------------------------- the report */
-  var out = [], n;
+  /* The headline goes FIRST. Apps Script truncates a long log, and the count is
+     the part that must survive; the lists can be read a section at a time. */
+  var out = [], n, blocked = 0;
+  for (i = 0; i < same.length; i++) blocked += weight_(same[i].keys);
+
   out.push('THE SAME INGREDIENT WRITTEN TWO WAYS');
+  out.push('');
+  out.push('   ' + keys.length + ' distinct ingredient names across ' + lib.length + ' recipes.');
+  out.push('   ' + choices.length + ' cell(s) hold a choice rather than an ingredient.');
+  out.push('   ' + same.length + ' group(s) are one ingredient spelt more than one way, ' +
+           'covering ' + blocked + ' recipe-slots.');
+  out.push('   ' + single.length + ' further pair(s) are worth a look.');
   out.push('');
   out.push('Nothing here has been changed. The price list is joined to the recipes by');
   out.push('the name, so two spellings are two rows to price, and pricing one leaves');
   out.push('every recipe on the other spelling uncosted, with nothing to say why.');
   out.push('');
 
-  out.push('1. A CELL HOLDING A CHOICE, NOT AN INGREDIENT');
-  out.push('   No single price can be right for these. The fix is in the R&D Log:');
-  out.push('   pick one, or split the line in two.');
+  out.push('1. A SLASH BETWEEN TWO INGREDIENTS');
+  out.push('   Read as a choice, and no single price can be right for one. The fix is');
+  out.push('   in the R&D Log: pick one, or split the line in two. A few may turn out');
+  out.push('   to be one product described two ways, which is a person to decide.');
   if (!choices.length) out.push('   none');
   for (i = 0; i < choices.length; i++) out.push('   ' + label_(choices[i]));
   out.push('');
@@ -179,20 +218,19 @@ function findLikeNames() {
   out.push('   Usually a brand added or dropped. Sometimes two real products.');
   out.push('   These are questions for a person, not findings.');
   if (!single.length) out.push('   none');
-  for (i = 0; i < single.length; i++)
+  /* The busiest come first, and the tail is counted rather than printed: the log
+     truncates, and a truncated report is worse than a short one. */
+  for (i = 0; i < single.length && i < NM_ASK; i++)
     out.push('   ' + spelling[single[i].keys[0]] + '   inside   ' +
              spelling[single[i].keys[1]] + '   (' + uses[single[i].keys[0]] + ' and ' +
              uses[single[i].keys[1]] + ' recipes; ' +
              (priced_(single[i].keys[0]) ? 'first priced' : 'first not priced') + ', ' +
              (priced_(single[i].keys[1]) ? 'second priced' : 'second not priced') + ')');
+  if (single.length > NM_ASK)
+    out.push('   ... and ' + (single.length - NM_ASK) + ' more, all of them quieter ' +
+             'than the ones above.');
   out.push('');
 
-  var blocked = 0;
-  for (i = 0; i < same.length; i++) blocked += weight_(same[i].keys);
-  out.push(keys.length + ' distinct ingredient names across ' + lib.length + ' recipes.');
-  out.push(choices.length + ' cell(s) hold a choice; ' + same.length +
-           ' group(s) are the same words, covering ' + blocked + ' recipe-slots; ' +
-           single.length + ' pair(s) to look at.');
   out.push('Merging any of them is a decision about what the kitchen buys, so nothing');
   out.push('was written. Rename in the R&D Log and the price list follows.');
 
