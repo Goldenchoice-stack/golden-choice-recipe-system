@@ -904,7 +904,18 @@ group('Planning a rename, and refusing half of it');
   ok('but the same unit twice is, and it is refused',
      /the same unit, two numbers/.test(p.refuse[1].why), p.refuse[1].why);
   ok('and a dose with nowhere to go is refused rather than dropped',
-     /no trial row to write the dose into/.test(p.refuse[0].why), p.refuse[0].why);
+     /the trial log has no row for RCP-9204 at all/.test(p.refuse[0].why), p.refuse[0].why);
+  /* A trial row filed under another version is a different problem, and saying
+     "no trial row" would hide it. */
+  {
+    const h = fx.build();
+    h.tabs[0].values = [fx.LOG_HEAD.slice(), row('RCP-9301', 'Espresso 18G', '36', 'ML')];
+    h.tabs[2].values = [fx.TRIAL_HEAD.slice(), (() => {
+      const r = trial('RCP-9301', 'Pull it.'); r[3] = 'V2.0'; return r; })()];
+    const w = load(h, { now: NOW }).ctx.renamePlan_(LIST, 'Espresso');
+    ok('a trial row under another version says so',
+       /files RCP-9301 under V2\.0, not V1\.0/.test(w.refuse[0].why), w.refuse[0].why);
+  }
 
   const q = R.renamePlan_(['Cheese Cap (1:3)', 'Original Cheese Cap'], 'Cheese Cap');
   eq('a ratio in the name is refused, not dropped', q.refuse.length, 2);

@@ -88,12 +88,21 @@ function renamePlan_(froms, to) {
 
   var n = sh.getLastRow();
   var vals = n < 2 ? [] : sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
-  var T = TRIALCOLS_(), trial = {}, tr = rows_(GID.trial);
+  /* Where a dose goes when the quantity column is measuring something else.
+     Versions are kept alongside so a miss can say WHICH miss it is: a recipe
+     with no trial row at all is a different problem from one whose trial row is
+     filed under another version, and "no trial row" would hide the second. */
+  var T = TRIALCOLS_(), trial = {}, seenVers = {}, tr = rows_(GID.trial);
   for (i = 0; i < tr.length; i++) {
     var tid = cell_(tr[i], T.id);
-    if (tid) trial[tid + '|' + (cell_(tr[i], T.ver) || 'V1.0')] = i + 2;   /* its sheet row */
+    if (!tid) continue;
+    var tv = cell_(tr[i], T.ver) || 'V1.0';
+    trial[tid + '|' + tv] = i + 2;                       /* its sheet row */
+    (seenVers[tid] = seenVers[tid] || []).push(tv);
   }
-  var plan = { to: to, rename: [], move: [], note: [], nothing: [], refuse: [], rows: 0 };
+  var plan = { to: to, rename: [], move: [], note: [], nothing: [], refuse: [], rows: 0,
+               trialRows: 0 };
+  for (var kk in trial) if (trial.hasOwnProperty(kk)) plan.trialRows++;
 
   for (i = 0; i < vals.length; i++) {
     var name = S_(vals[i][L.ing]);
@@ -144,9 +153,13 @@ function renamePlan_(froms, to) {
     at.trial = trial[at.id + '|' + at.ver];
     at.note = to + ' dose: ' + dose.text + '.';
     if (!at.trial || T.method < 0) {
+      var have = seenVers[at.id];
       at.why = 'the name says ' + dose.text + ' beside ' + at.qty + ' ' + at.uom +
-               ', and there is no trial row to write the dose into, so removing it ' +
-               'from the name would lose it';
+               ', and ' + (T.method < 0 ? 'the trial log has no PREPARATION METHOD column'
+                 : have ? 'the trial log files ' + at.id + ' under ' + have.join(', ') +
+                          ', not ' + at.ver
+                 : 'the trial log has no row for ' + at.id + ' at all') +
+               ', so taking the dose out of the name would lose it';
       plan.refuse.push(at); continue;
     }
     at.why = at.qty + ' ' + at.uom + ' is what goes in the cup, ' + dose.text +
@@ -175,6 +188,8 @@ function rnReport_(plan, applied) {
   var out = [head, ''];
   out.push('   Target spelling: "' + plan.to + '"');
   out.push('   ' + plan.rows + ' row(s) carry one of the old spellings.');
+  out.push('   ' + plan.trialRows + ' trial row(s) indexed, which is where a dose goes when ' +
+           'the quantity column is measuring something else.');
   out.push('   ' + plan.rename.length + ' rename cleanly, ' + plan.move.length +
            ' also move a dose into the quantity column, ' + plan.note.length +
            ' also write a dose into the method, ' + plan.refuse.length + ' refused.');
