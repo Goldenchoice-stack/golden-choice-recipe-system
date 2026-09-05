@@ -155,7 +155,7 @@ function findLikeNames() {
   out.push('');
   out.push('Nothing here has been changed. The price list is joined to the recipes by');
   out.push('the name, so two spellings are two rows to price, and pricing one leaves');
-  out.push('the other’s recipes uncosted with nothing on screen to say why.');
+  out.push('every recipe on the other spelling uncosted, with nothing to say why.');
   out.push('');
 
   out.push('1. A CELL HOLDING A CHOICE, NOT AN INGREDIENT');
@@ -175,7 +175,7 @@ function findLikeNames() {
   }
   out.push('');
 
-  out.push('3. ONE NAME’S WORDS ALL INSIDE ANOTHER’S');
+  out.push('3. ONE NAME MADE ENTIRELY OF WORDS FROM ANOTHER');
   out.push('   Usually a brand added or dropped. Sometimes two real products.');
   out.push('   These are questions for a person, not findings.');
   if (!single.length) out.push('   none');
