@@ -22,23 +22,28 @@
  *                      contradiction: 18 grams of ground coffee yields about 36
  *                      millilitres of espresso, and both numbers are true. The
  *                      volume stays in the quantity column where costing reads
- *                      it, and the dose is written into the recipe's PREPARATION
- *                      METHOD, which is where a brewing parameter belongs and
- *                      where somebody will actually see it.
- *   REFUSED            Anything else. The name and the quantity column give the
- *                      SAME unit and different numbers — a real contradiction,
- *                      and only a person knows which is right. Or the part being
- *                      removed is not a dose at all: "Cheese Cap (1:3)" is a
- *                      ratio and "Original Cheese Cap" is a word. Or the recipe
- *                      has no trial row to write the dose into, so keeping it is
- *                      impossible.
+ *                      it, and the dose is kept — in the recipe's PREPARATION
+ *                      METHOD when it has a trial row, and in the CHANGE LOG
+ *                      always. The live trial log holds 32 of 398 recipes, so
+ *                      the change log is the one that can be relied on.
+ *   REFUSED            The name and the quantity column give the SAME unit and
+ *                      different numbers — a real contradiction, and only a
+ *                      person knows which is right. Or the part being removed is
+ *                      not a dose at all: "Cheese Cap (1:3)" is a ratio and
+ *                      "Original Cheese Cap" is a word.
  *
  * A refused row is left exactly as it was and named in the report. Nothing is
  * ever renamed by guessing what the extra text meant.
  *
+ * EVERY WRITE IS RECORDED IN THE CHANGE LOG, one row per cell changed, with the
+ * old value, the new value and what was carried where. That tab already exists
+ * for exactly this and it is part of the spreadsheet, so the record outlives the
+ * execution log this prints to. The sheet's own File -> Version history is the
+ * blunt undo; the change log is the readable one.
+ *
  * It runs as a plan first. renamePlan_() writes nothing at all; renameApply_()
  * writes only the rows the plan called safe, and reports every old value it
- * replaced. The sheet's own File -> Version history is the real undo.
+ * replaced.
  */
 
 /* Units the log measures in. A dose in the name is only understood in one of
@@ -150,20 +155,15 @@ function renamePlan_(froms, to) {
     /* Different units measure different things, and grams never become
        millilitres, so neither number is wrong. Keep the volume where costing
        reads it and write the dose where somebody will see it. */
-    at.trial = trial[at.id + '|' + at.ver];
+    at.trial = (T.method < 0) ? 0 : (trial[at.id + '|' + at.ver] || 0);
     at.note = to + ' dose: ' + dose.text + '.';
-    if (!at.trial || T.method < 0) {
-      var have = seenVers[at.id];
-      at.why = 'the name says ' + dose.text + ' beside ' + at.qty + ' ' + at.uom +
-               ', and ' + (T.method < 0 ? 'the trial log has no PREPARATION METHOD column'
-                 : have ? 'the trial log files ' + at.id + ' under ' + have.join(', ') +
-                          ', not ' + at.ver
-                 : 'the trial log has no row for ' + at.id + ' at all') +
-               ', so taking the dose out of the name would lose it';
-      plan.refuse.push(at); continue;
-    }
+    var have = seenVers[at.id];
+    at.where = at.trial ? 'the preparation method and the change log'
+             : have ? 'the change log — the trial log files ' + at.id + ' under ' +
+                      have.join(', ') + ', not ' + at.ver
+             : 'the change log — the trial log has no row for ' + at.id;
     at.why = at.qty + ' ' + at.uom + ' is what goes in the cup, ' + dose.text +
-             ' is what it was made from; the quantity stays and the dose goes to the method';
+             ' is what it was made from; the quantity stays and the dose goes to ' + at.where;
     plan.note.push(at);
   }
   return plan;
@@ -206,8 +206,9 @@ function rnReport_(plan, applied) {
   if (!applied) {
     out.push('   Nothing above has been written. Run the apply function to do it.');
   } else {
-    out.push('   Written. The old values are printed above, and the spreadsheet keeps');
-    out.push('   its own File -> Version history if the whole thing wants undoing.');
+    out.push('   Written, and every change is a row in the CHANGE LOG with its old value,');
+    out.push('   so the record is in the spreadsheet rather than only in this log. File ->');
+    out.push('   Version history undoes the lot if it ever needs to.');
     out.push('   Run seedPrices() afterwards so the Prices tab drops the rows for the');
     out.push('   spellings that no longer exist.');
   }
@@ -219,31 +220,66 @@ function rnReport_(plan, applied) {
  * ingredient, quantity and UOM columns, one cell at a time so a failure part way
  * leaves the rest readable rather than half a block rewritten.
  */
+/* The CHANGE LOG row for one rename. Old Version and New Version are the same:
+   this corrects a spelling, it does not make a new version of the recipe. */
+var RN_BY     = 'Spelling fix';
+var RN_REASON = 'One ingredient, one spelling, so the price list can reach it';
+
+function rnChange_(a, to, remark) {
+  return [a.id, a.ver, a.ver, 'Ingredient name', a.from, to,
+          RN_BY, stamp_(), RN_REASON, remark];
+}
+
+/**
+ * Replays a plan onto the sheet. Only the rows the plan called safe, only the
+ * ingredient, quantity and UOM columns, one cell at a time so a failure part way
+ * leaves the rest readable rather than half a block rewritten. Every write puts
+ * a row in the CHANGE LOG, so what happened is in the spreadsheet and not only
+ * in this report.
+ */
 function renameApply_(froms, to) {
-  var plan = renamePlan_(froms, to), L = LOGCOLS_(), sh = sheetByGid_(GID.log), i;
-  for (i = 0; i < plan.rename.length; i++)
-    sh.getRange(plan.rename[i].row, L.ing + 1).setValue(to);
+  var plan = renamePlan_(froms, to), L = LOGCOLS_(), sh = sheetByGid_(GID.log);
+  var T = TRIALCOLS_(), ts = sheetByGid_(GID.trial), changes = [], done = {}, i, a;
+
+  for (i = 0; i < plan.rename.length; i++) {
+    a = plan.rename[i];
+    sh.getRange(a.row, L.ing + 1).setValue(to);
+    changes.push(rnChange_(a, to, a.dose
+      ? 'The name repeated the quantity column, which already said ' + a.dose + '.'
+      : 'Only the spelling changed.'));
+  }
+
   for (i = 0; i < plan.move.length; i++) {
-    var m = plan.move[i], d = rnDose_(rnExtra_(m.from, to));
-    sh.getRange(m.row, L.ing + 1).setValue(to);
-    sh.getRange(m.row, L.qty + 1).setValue(d.qty);
-    if (L.uom >= 0) sh.getRange(m.row, L.uom + 1).setValue(d.unit);
+    a = plan.move[i];
+    var d = rnDose_(rnExtra_(a.from, to));
+    sh.getRange(a.row, L.ing + 1).setValue(to);
+    sh.getRange(a.row, L.qty + 1).setValue(d.qty);
+    if (L.uom >= 0) sh.getRange(a.row, L.uom + 1).setValue(d.unit);
+    changes.push(rnChange_(a, to, 'The dose ' + d.text + ' moved out of the name into the ' +
+      'quantity column, which held ' + (a.qty ? '"' + a.qty + '"' : 'nothing') + '.'));
   }
-  /* The method cell is appended to, never replaced, and only when it does not
-     already say this — two log rows for one recipe must not write it twice. */
-  if (plan.note.length) {
-    var ts = sheetByGid_(GID.trial), T = TRIALCOLS_(), done = {};
-    for (i = 0; i < plan.note.length; i++) {
-      var a = plan.note[i];
-      sh.getRange(a.row, L.ing + 1).setValue(to);
-      var mark = a.trial + '|' + a.note;
-      if (done[mark]) continue;
-      done[mark] = 1;
+
+  for (i = 0; i < plan.note.length; i++) {
+    a = plan.note[i];
+    sh.getRange(a.row, L.ing + 1).setValue(to);
+    /* The method cell is appended to, never replaced, and only once however many
+       log rows one recipe has. */
+    if (a.trial && !done[a.trial + '|' + a.note]) {
+      done[a.trial + '|' + a.note] = 1;
       var cell = ts.getRange(a.trial, T.method + 1), was = S_(cell.getValue());
-      if (was.indexOf(a.note) >= 0) continue;
-      cell.setValue(was ? was.replace(/\s+$/, '') + ' ' + a.note : a.note);
+      if (was.indexOf(a.note) < 0)
+        cell.setValue(was ? was.replace(/\s+$/, '') + ' ' + a.note : a.note);
     }
+    changes.push(rnChange_(a, to, 'The name also carried ' + a.dose + '. The quantity ' +
+      'column keeps ' + a.qty + ' ' + a.uom + ', which is what goes in the cup; ' + a.dose +
+      ' is what it was made from. Kept in ' + a.where + '.'));
   }
+
+  if (changes.length) {
+    var ch = tab_(CHANGES_TAB, CHANGES_HEAD);
+    ch.getRange(ch.getLastRow() + 1, 1, changes.length, CHANGES_HEAD.length).setValues(changes);
+  }
+
   var msg = rnReport_(plan, true);
   Logger.log(msg);
   return msg;

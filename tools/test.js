@@ -895,18 +895,20 @@ group('Planning a rename, and refusing half of it');
      rows('rename'), ['Espresso 18G']);
   eq('a dose with nowhere recorded is moved into the quantity column',
      rows('move'), ['Espresso (22g)']);
-  eq('a dose measuring something else is written into the method instead',
-     rows('note'), ['espresso (18G)']);
-  eq('and two refused', rows('refuse'), ['Espresso 16g', 'Espresso 20g']);
+  eq('a dose measuring something else is kept rather than dropped',
+     rows('note'), ['Espresso 16g', 'espresso (18G)']);
+  eq('and only the real contradiction is refused', rows('refuse'), ['Espresso 20g']);
 
   ok('grams beside millilitres is not a contradiction, it is two measurements',
-     /what goes in the cup[\s\S]*what it was made from/.test(p.note[0].why), p.note[0].why);
+     /what goes in the cup[\s\S]*what it was made from/.test(p.note[1].why), p.note[1].why);
   ok('but the same unit twice is, and it is refused',
-     /the same unit, two numbers/.test(p.refuse[1].why), p.refuse[1].why);
-  ok('and a dose with nowhere to go is refused rather than dropped',
-     /the trial log has no row for RCP-9204 at all/.test(p.refuse[0].why), p.refuse[0].why);
-  /* A trial row filed under another version is a different problem, and saying
-     "no trial row" would hide it. */
+     /the same unit, two numbers/.test(p.refuse[0].why), p.refuse[0].why);
+  ok('a recipe with a trial row gets the dose in the method too',
+     /preparation method and the change log/.test(p.note[1].why), p.note[1].why);
+  ok('and one without still gets it, in the change log',
+     /change log — the trial log has no row for RCP-9204/.test(p.note[0].why), p.note[0].why);
+  /* A trial row filed under another version is a different thing from none, and
+     saying "no trial row" would hide it. */
   {
     const h = fx.build();
     h.tabs[0].values = [fx.LOG_HEAD.slice(), row('RCP-9301', 'Espresso 18G', '36', 'ML')];
@@ -914,7 +916,7 @@ group('Planning a rename, and refusing half of it');
       const r = trial('RCP-9301', 'Pull it.'); r[3] = 'V2.0'; return r; })()];
     const w = load(h, { now: NOW }).ctx.renamePlan_(LIST, 'Espresso');
     ok('a trial row under another version says so',
-       /files RCP-9301 under V2\.0, not V1\.0/.test(w.refuse[0].why), w.refuse[0].why);
+       /files RCP-9301 under V2\.0, not V1\.0/.test(w.note[0].why), w.note[0].why);
   }
 
   const q = R.renamePlan_(['Cheese Cap (1:3)', 'Original Cheese Cap'], 'Cheese Cap');
@@ -946,17 +948,37 @@ group('Planning a rename, and refusing half of it');
   eq('while the dose is appended to the method, not replacing it',
      method(0), 'Pull the shot, top with milk. Espresso dose: 18 G.');
 
-  eq('the row with nowhere to keep its dose is left exactly as it was', ing(3), 'Espresso 16g');
-  eq('with its quantity untouched too', qty(3) + ' ' + uom(3), '30 ML');
-  eq('so is the contradicting one', ing(5), 'Espresso 20g');
+  eq('the one with no trial row is renamed too', ing(3), 'Espresso');
+  eq('keeping its quantity', qty(3) + ' ' + uom(3), '30 ML');
+  eq('the contradicting one is left exactly as it was', ing(5), 'Espresso 20g');
   eq('and its method is left empty rather than given a number', method(1), '');
   eq('and nothing outside the list is touched', ing(6) + '|' + ing(7),
      'Cheese Cap (1:3)|Original Cheese Cap');
 
+  /* The change log is the record that outlives the execution log. */
+  const chg = A.ss.getSheetByName('CHANGE LOG');
+  const clog = chg.getRange(2, 1, chg.getLastRow() - 1, 10).getValues();
+  eq('one change row per cell changed', clog.length, 4);
+  eq('each names the field', clog.map(r => r[3]).join('|'),
+     'Ingredient name|Ingredient name|Ingredient name|Ingredient name');
+  eq('and carries the old spelling and the new',
+     clog.map(r => r[4] + '>' + r[5]).join(', '),
+     'Espresso 18G>Espresso, Espresso (22g)>Espresso, Espresso 16g>Espresso, ' +
+     'espresso (18G)>Espresso');
+  eq('a rename is not a new version of the recipe',
+     clog.filter(r => r[1] !== r[2]).length, 0);
+  ok('the dose that could not go anywhere else is written down here',
+     clog.some(r => /also carried 16 G/.test(r[9]) && /change log/.test(r[9])),
+     clog.map(r => r[9]).join(' // '));
+  ok('and the one that moved into the quantity column says so',
+     clog.some(r => /22 G moved out of the name into the quantity column/.test(r[9])));
+  ok('nothing refused is recorded as a change',
+     !clog.some(r => /Espresso 20g/.test(r[4])));
+
   ok('the report prints the old value of every row it wrote',
      /Espresso \(22g\)/.test(msg) && /espresso \(18G\)/.test(msg));
-  ok('and says the refused ones still need a person',
-     /REFUSED[\s\S]*Espresso 16g/.test(msg));
+  ok('and says the refused one still needs a person',
+     /REFUSED[\s\S]*Espresso 20g/.test(msg));
   ok('it points at the sheet history for a real undo', /Version history/.test(msg));
 
   /* Running it twice must find nothing left to do, and must not write the note
@@ -965,7 +987,9 @@ group('Planning a rename, and refusing half of it');
   ok('a second run renames nothing', /0 rename cleanly, 0 also move/.test(again), again.slice(0, 300));
   eq('and the method is not doubled up',
      method(0), 'Pull the shot, top with milk. Espresso dose: 18 G.');
-  eq('while the two refusals still stand', ing(3) + '|' + ing(5), 'Espresso 16g|Espresso 20g');
+  eq('while the refusal still stands', ing(5), 'Espresso 20g');
+  eq('and the change log is not written a second time',
+     chg.getLastRow() - 1, 4);
 }
 
 group('The four pages are the tested copies');
