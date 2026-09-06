@@ -28,7 +28,8 @@ function onOpen() {
        credential saved from the editor went into the wrong one four times. A
        menu served by the bound script cannot reach a copy. */
     .addSubMenu(ui.createMenu('Setup')
-      .addItem('Set GC Sync Token', 'setSyncToken'))
+      .addItem('Set GC Sync Token', 'setSyncToken')
+      .addItem('Where am I', 'whereAmI'))
     .addToUi();
 }
 

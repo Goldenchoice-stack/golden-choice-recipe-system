@@ -1148,6 +1148,32 @@ group('Settling several groups in one run');
  *
  * The tests that matter are the ones about what the token must never touch.
  */
+group('Where am I');
+{
+  const SECRET = 'tok-value-that-must-not-show';
+  const A = load(fx.build({ withPrices: false }), {
+    now: NOW, scriptId: 'THE-LIVE-PROJECT-ID',
+    properties: { GC_SYNC_URL: 'https://sync.test/x', GC_SYNC_TOKEN: SECRET,
+                  GC_APP_FOLDER: 'folder-id' }
+  });
+  const msg = A.ctx.whereAmI();
+  ok('it names the script', /script       THE-LIVE-PROJECT-ID/.test(msg), msg);
+  ok('and the spreadsheet', /spreadsheet  /.test(msg));
+  ok('and its name, so a person can recognise it', /named        /.test(msg));
+  ok('it says which settings exist', /set     GC_SYNC_URL/.test(msg), msg);
+  ok('and which do not', /MISSING GC_AUTH_SALT/.test(msg), msg);
+  ok('NEVER showing a value', msg.indexOf(SECRET) < 0);
+  ok('and the log does not carry one either', A.logs.join('\n').indexOf(SECRET) < 0);
+  ok('it counts what is missing', /2 missing/.test(msg), msg);
+
+  /* With the token absent it points at the menu that sets it. */
+  const B = load(fx.build({ withPrices: false }), {
+    now: NOW, properties: { GC_SYNC_URL: 'https://sync.test/x' } });
+  const b = B.ctx.whereAmI();
+  ok('a missing token is called out', /MISSING GC_SYNC_TOKEN/.test(b), b);
+  ok('and it says to use THIS sheet', /from THIS sheet/.test(b));
+}
+
 group('Set GC Sync Token, from the sheet menu');
 {
   const SECRET = 'tok-live-7c21-must-never-appear';

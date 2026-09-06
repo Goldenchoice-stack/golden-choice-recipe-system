@@ -1253,8 +1253,17 @@ function preflight() {
                          'so nothing can be costed yet.');
   }
   var props = PropertiesService.getScriptProperties();
-  if (!props.getProperty('GC_SYNC_URL') || !props.getProperty('GC_SYNC_TOKEN'))
-    note_('GC_SYNC_URL and GC_SYNC_TOKEN are not both set in Project Settings -> ' +
+  /* Which one is missing, not merely that one is. "Not both set" sent somebody
+     back to check a setting that was already there, more than once. */
+  var hasUrl = !!props.getProperty('GC_SYNC_URL');
+  var hasTok = !!props.getProperty('GC_SYNC_TOKEN');
+  if (hasUrl !== hasTok)
+    note_((hasUrl ? 'GC_SYNC_TOKEN is missing' : 'GC_SYNC_URL is missing') + ' from this ' +
+          'project\'s Script Properties (' + (hasUrl ? 'GC_SYNC_URL' : 'GC_SYNC_TOKEN') +
+          ' is there). Set it from the spreadsheet: R&D Tools -> Setup -> Set GC Sync ' +
+          'Token. "Update prices from AutoCount" will refuse to run until then.');
+  else if (!hasUrl && !hasTok)
+    note_('GC_SYNC_URL and GC_SYNC_TOKEN are not set in Project Settings -> ' +
           'Script Properties, so "Update prices from AutoCount" will refuse to run. ' +
           'Everything else works without them.');
   else ok_('The AutoCount snapshot settings are in place.');

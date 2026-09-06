@@ -97,6 +97,50 @@ function syncTokenStore_(token) {
 }
 
 /**
+ * R&D Tools -> Setup -> Where am I.
+ *
+ * Answers the question that cost six rounds: WHICH COPY IS THIS, and what does
+ * it actually have. Run from the sheet, so it describes the environment you are
+ * looking at rather than one somebody else is looking at.
+ *
+ * It reports whether each setting EXISTS. It never shows a value, so it is safe
+ * to screenshot and send to anybody.
+ */
+function whereAmI() {
+  var props = PropertiesService.getScriptProperties();
+  var lines = ['WHERE AM I', ''];
+  try { lines.push('  script       ' + ScriptApp.getScriptId()); }
+  catch (e) { lines.push('  script       (unavailable)'); }
+  try {
+    var ss = SpreadsheetApp.getActive();
+    lines.push('  spreadsheet  ' + ss.getId());
+    lines.push('  named        ' + ss.getName());
+  } catch (e2) { lines.push('  spreadsheet  (unavailable)'); }
+
+  lines.push('');
+  lines.push('SETTINGS IN THIS PROJECT  (whether they exist, never what they are)');
+  var want = ['GC_SYNC_URL', 'GC_SYNC_TOKEN', 'GC_APP_FOLDER', 'GC_AUTH_SALT',
+              'GC_AUTH_SECRET'];
+  var missing = 0;
+  for (var i = 0; i < want.length; i++) {
+    var there = !!props.getProperty(want[i]);
+    if (!there) missing++;
+    lines.push('  ' + (there ? 'set     ' : 'MISSING ') + want[i]);
+  }
+
+  lines.push('');
+  lines.push(missing
+    ? missing + ' missing. If GC_SYNC_TOKEN is one of them, use R&D Tools -> Setup -> ' +
+      'Set GC Sync Token\nfrom THIS sheet — the one whose id is printed above.'
+    : 'Everything the AutoCount refresh needs is here.');
+
+  var msg = lines.join('\n');
+  try { SpreadsheetApp.getUi().alert('Where am I', msg, SpreadsheetApp.getUi().ButtonSet.OK); }
+  catch (e3) { Logger.log(msg); }
+  return msg;
+}
+
+/**
  * R&D Tools -> Setup -> Set GC Sync Token.
  *
  * A modal prompt on the live spreadsheet. The token exists in the dialog and in
